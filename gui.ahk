@@ -1,28 +1,30 @@
 #Include files.ahk
 #Include arrays.ahk
 
-ahk := false
-py := false
-fcs := false
-singleGui := unset
-displaying := unset
+
+globalGui := unset
 globalDisplaySeconds := 0
+displaying := unset
 onEnterCmd := nothing
+onShiftUpCmd := nothing
+onShiftDownCmd := nothing
+onShiftDelCmd := nothing
 ahkWin := toExe('AutoHotkey64')
 
 
-display(msg, sec := 3, copy := false, followGui := false) {
+display(msg, sec := 3, followGui := false, copy := false) {
     global displaying
     displaying := IsSet(displaying) ? displaying '`n' msg : msg
     if followGui {
-        ToolTip(displaying, 0, 15)
+        ToolTip(displaying, 0, -22)
     } else {
         ToolTip(displaying)
     }
     t := -1000 * (globalDisplaySeconds > 0 ? globalDisplaySeconds : sec)
     SetTimer(() => (displaying := unset, ToolTip()), t)
-    if copy
+    if copy {
         A_Clipboard := msg
+    }
 }
 
 displayAll(sec, msg*) {
@@ -30,15 +32,15 @@ displayAll(sec, msg*) {
 }
 
 makeGui(fontOpt := 's10', font := 'consolas') {
-    global singleGui
-    if IsSet(singleGui) {
-        singleGui.Destroy()
+    global globalGui
+    if IsSet(globalGui) {
+        globalGui.Destroy()
     }
-    singleGui := Gui()
-    singleGui.SetFont(fontOpt, font)
-    singleGui.OnEvent('Escape', destroyGui)
-    singleGui.Opt('-Caption')
-    return singleGui
+    globalGui := Gui()
+    globalGui.SetFont(fontOpt, font)
+    globalGui.OnEvent('Escape', g => exitGui())
+    globalGui.Opt('-Caption')
+    return globalGui
 }
 
 nothing(*) {
@@ -49,14 +51,40 @@ setOnEnter(cmd) {
     onEnterCmd := cmd
 }
 
-destroyGui(*) {
-    singleGui.Destroy()
-    global onEnterCmd
+setOnShiftUp(cmd) {
+    global onShiftUpCmd
+    onShiftUpCmd := cmd
+}
+
+setOnShiftDown(cmd) {
+    global onShiftDownCmd
+    onShiftDownCmd := cmd
+}
+
+setOnShiftDel(cmd) {
+    global onShiftDelCmd
+    onShiftDelCmd := cmd
+}
+
+exitGuiWith(msg, sec) {
+    exitGui(g => display(msg, sec, true))
+}
+
+exitGui(preAction?) {
+    if IsSet(preAction) {
+        preAction(globalGui)
+    }
+    global globalGui, onEnterCmd, onShiftUpCmd, onShiftDownCmd, onShiftDelCmd
+    globalGui.Destroy()
+    globalGui := unset
     onEnterCmd := nothing
+    onShiftUpCmd := nothing
+    onShiftDownCmd := nothing
+    onShiftDelCmd := nothing
 }
 
 showGui() {
-    singleGui.Show('AutoSize')
+    globalGui.Show('AutoSize')
 }
 
 centerWindow() {
@@ -64,19 +92,23 @@ centerWindow() {
     WinMove((A_ScreenWidth / 2) - (width / 2), (A_ScreenHeight / 2) - (height / 2), , , 'A')
 }
 
-readInput(guiMaker := makeGui, editOpt := 'r1 w300', defaultText := '', onEnter := display) {
-    g := guiMaker()
-    gc := g.AddEdit(editOpt, defaultText)
-    enterCmd(*) {
-        text := gc.Value
-        msg := onEnter(text)
+gcWrapCmd(gc, callback) {
+    cmd() {
+        msg := callback(gc)
         if msg {
-            display(msg, 1, , true)
-        } else {
-            destroyGui()
+            display(msg, 1, true)
+            return
         }
     }
-    setOnEnter(enterCmd)
+    return cmd
+}
+
+readInput(guiMaker := makeGui, editOpt := 'r1 w300', defaultText := '', onEnter?) {
+    g := guiMaker()
+    gc := g.AddEdit(editOpt, defaultText)
+    if IsSet(onEnter) {
+        setOnEnter(gcWrapCmd(gc, onEnter))
+    }
     showGui()
 }
 
@@ -92,7 +124,7 @@ listAll(a, guiMaker := makeGui, destroyOnConfirm := true, onEnter := display) {
     onConfirm(gc, index) {
         onEnter(index)
         if destroyOnConfirm {
-            destroyGui()
+            exitGui()
         }
     }
     box.OnEvent('DoubleClick', onConfirm)
@@ -105,13 +137,13 @@ estimateLen(str) {
     return asum(StrSplit(str), c => Ord(c) < 128 or edgeMap.Has(c) ? 7.5 : 15)
 }
 
-listViewAll(titles, rows, guiMaker := makeGui, destroyOnConfirm := true, onEnter?, onDoubleClick?) {
+listViewAll(titles, rows, guiMaker := makeGui, onEnter?, onShiftUp?, onShiftDown?, onShiftDel?) {
     if rows.Length = 0 {
         throw ValueError('Empty list')
     }
     colNum := rows[1].Length
     if titles.Length != colNum {
-        throw ValueError('title length mismatched with columns (' titles.Length ' != ' colNum ')')
+        throw ValueError('Title length mismatched with columns (' titles.Length ' != ' colNum ')')
     }
     g := guiMaker()
 
@@ -129,53 +161,26 @@ listViewAll(titles, rows, guiMaker := makeGui, destroyOnConfirm := true, onEnter
 
     lv.ModifyCol()
     lv.ModifyCol(colNum, 'AutoHdr')
-    lv.Modify(1, 'Focus')
-    lv.Modify(1, 'Select')
+    lvSelect(lv, 1)
 
-    onEnterCmd() {
-        if IsSet(onEnter) {
-            msg := onEnter(lv.GetNext())
-            if msg {
-                display(msg, 1)
-                return
-            }
-        }
-        if destroyOnConfirm {
-            destroyGui()
-        }
-    }
     if IsSet(onEnter) {
-        setOnEnter(onEnterCmd)
+        setOnEnter(gcWrapCmd(lv, onEnter))
     }
-    if IsSet(onDoubleClick) {
-        lv.OnEvent('DoubleClick', onDoubleClick)
+    if IsSet(onShiftUp) {
+        setOnShiftUp(gcWrapCmd(lv, onShiftUp))
+    }
+    if IsSet(onShiftDown) {
+        setOnShiftDown(gcWrapCmd(lv, onShiftDown))
+    }
+    if IsSet(onShiftDel) {
+        setOnShiftDel(gcWrapCmd(lv, onShiftDel))
     }
     showGui()
 }
 
-configMode() {
-    g := makeGui()
-    width := 'w200'
-
-    addModeBox(name, var, toggler) {
-        box := g.AddCheckbox(checkboxOpt(width, var), name)
-        box.OnEvent('Click', toggler)
-    }
-
-    global ahk
-    addModeBox('ahk mode', ahk, (*) => ahk := !ahk)
-
-    global py
-    addModeBox('python mode', py, (*) => py := !py)
-
-    global fcs
-    addModeBox('chrome focus mode', fcs, (*) => fcs := !fcs)
-
-    showGui()
-}
-
-checkboxOpt(origin, isChecked) {
-    return isChecked ? origin ' checked' : origin
+lvSelect(lv, i) {
+    lv.Modify(i, 'Focus')
+    lv.Modify(i, 'Select')
 }
 
 toExe(name) {
@@ -189,6 +194,9 @@ procName() {
 
 #HotIf WinActive(toExe('AutoHotkey64'))
 Enter:: onEnterCmd()
++Up:: onShiftUpCmd()
++Down:: onShiftDownCmd()
++Del:: onShiftDelCmd()
 #HotIf
 
 

@@ -68,17 +68,19 @@ backupDir := A_WorkingDir
 
 class BackupContext {
     __New(proc, src) {
-        this.target := backupDir '\' proc
+        this.proc := proc
         this.src := src
+        this.target := backupDir '\' proc
         this.saves := scanFilesLatest(this.target, , 'D').map(fileName).toArray()
-        this.saveEntries := amap(this.saves, f => StrSplit(f, '#'))
-        this.saveEntries.Push(['', '', ''])
+        this.entries := amap(this.saves, f => StrSplit(f, '#'))
+        this.entries.Push(['', '', ''])
         scanFiles(this.target).find(&headFile, f => not fileExt(f))
         this.head := IsSet(headFile) ? fileName(headFile) : ''
     }
 
     saveFiles(suffix := '*') {
-        onEnter(saveName) {
+        onEnter(ed) {
+            saveName := ed.Value
             if isFullMatch(saveName, '\s*') {
                 return '不允许空文件夹'
             }
@@ -91,43 +93,43 @@ class BackupContext {
                 return '无可备份文件'
             }
             timestamp := timeEncode(latestTime)
-            for i, e in this.saveEntries {
+            for i, e in this.entries {
                 if e[1] == timestamp {
                     DirMove(this.target '\' this.saves[i], this.target '\' e[1] '#' e[2] '#' saveName, 'R')
                     display(saveName ' - (最新存档)已重命名', , , true)
                     return
                 }
             }
-            if anyMatch(this.saveEntries, e => e[3] == saveName) {
+            if anyMatch(this.entries, e => e[3] == saveName) {
                 return '存档已存在'
             }
-            saveFolder := timestamp '#' this.head '#' saveName
-            filesBackup(this.target, saveFolder, srcFiles.map(filePath))
+            folder := timestamp '#' this.head '#' saveName
+            filesBackup(this.target, folder, srcFiles.map(filePath))
             if this.head {
                 FileMove(this.target '\' this.head, this.target '\' timestamp)
             } else {
                 FileAppend('', this.target '\' timestamp)
             }
-            display(saveName ' - 已保存', , , true)
+            exitGuiWith(saveName ' - 已保存', 3)
         }
         readInput(() => makeGui(, '微软雅黑'), , '存档名称', onEnter)
     }
 
     recoverFiles() {
-        size := this.saveEntries.Length
+        size := this.entries.Length
         if size <= 1 {
             display('暂无备份')
             return
         }
         nodeIndexMap := Map()
-        forEachIndexed(this.saveEntries, (i, e) => nodeIndexMap[e[1]] := i)
-        parentMap := range(1, size - 1).toMapWith(i => nodeIndexMap.Get(this.saveEntries[i][2], size))
+        forEachIndexed(this.entries, (i, e) => nodeIndexMap[e[1]] := i)
+        parentMap := range(1, size - 1).toMapWith(i => nodeIndexMap.Get(this.entries[i][2], size))
         childrenMap := range(1, size - 1).groupBy(i => parentMap[i], i => i)
         tree := gen(size, () => repeat(size, ' '))
 
         foundHead := false
         fillNode(i, j) {
-            if not foundHead and this.saveEntries[i][1] == this.head {
+            if not foundHead and this.entries[i][1] == this.head {
                 foundHead := true
                 tree[i][j] := '╪'
             } else {
@@ -172,27 +174,68 @@ class BackupContext {
 
         }
         after := amap(tree, beautifyRow)
-        rows := amapIndexed(this.saveEntries, (i, e) => [after[i] ' ' e[3], readableTime(timeDecode(e[1]))])
+        rows := amapIndexed(this.entries, (i, e) => [after[i] ' ' e[3], readableTime(timeDecode(e[1]))])
 
-        onEnter(i) {
-            if i < size {
-                FileCopy(this.target '\' this.saves[i] '\*', this.src, true)
-                FileMove(this.target '\' this.head, this.target '\' this.saveEntries[i][1])
-                display(this.saveEntries[i][3] ' - 已恢复')
+        onEnter(lv) {
+            index := lv.GetNext()
+            if index < size {
+                FileCopy(this.target '\' this.saves[index] '\*', this.src, true)
+                this.changeHead(index)
+                exitGuiWith(this.entries[index][3] ' - 已恢复', 3)
             } else {
                 return '虚拟根节点'
             }
         }
-        onDoubleClick(gc, index) {
-            if index < size {
-                Run('explorer /select,' this.target '\' this.saves[index])
+        onShiftUp(lv) {
+            index := lv.GetNext()
+            if childrenMap.Has(index) {
+                lvSelect(lv, childrenMap[index][1])
             }
         }
-        listViewAll(['存档', '时间'], rows, , , onEnter, onDoubleClick)
+        onShiftDown(lv) {
+            lvSelect(lv, parentMap[lv.GetNext()])
+        }
+        onShiftDel(lv) {
+            index := lv.GetNext()
+            if index == size {
+                return
+            }
+            parent := parentMap[index]
+            if childrenMap.Has(index) {
+                children := childrenMap[index]
+                if children.Length > 1 {
+                    return '存在多个子节点 无法删除'
+                }
+                child := children[1]
+                this.changeParent(child, parent)
+            } else {
+                if this.entries[index][1] == this.head and parent < size {
+                    this.changeHead(parent)
+                }
+            }
+            this.delSave(index)
+            exitGuiWith(this.entries[index][3] ' - 已删除', 3)
+            BackupContext(this.proc, this.src).recoverFiles()
+        }
+        listViewAll(['存档', '时间'], rows, , onEnter, onShiftUp, onShiftDown, onShiftDel)
+    }
+
+    delSave(index) {
+        DirDelete(this.target '\' this.saves[index], true)
+    }
+
+    changeHead(index) {
+        FileMove(this.target '\' this.head, this.target '\' this.entries[index][1])
+    }
+
+    changeParent(index, parent) {
+        src := this.entries[index]
+        des := this.entries[parent]
+        DirMove(this.target '\' this.saves[index], this.target '\' src[1] '#' des[1] '#' src[3], 'R')
     }
 }
 
-#LButton:: {
+#F6:: {
     proc := procName()
     src := dirMap.Get(proc, '')
     if src {
@@ -200,7 +243,7 @@ class BackupContext {
         ac.saveFiles()
     }
 }
-#RButton:: {
+#F7:: {
     proc := procName()
     src := dirMap.Get(proc, '')
     if src {
