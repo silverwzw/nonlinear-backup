@@ -2,6 +2,9 @@
 #Include gui.ahk
 
 
+appName := '非线性备份'
+cmdMap := seqAll('onEnter', 'onShiftUp', 'onShiftDown', 'onDel').toMapWith(name => nothing)
+
 checkTimeFormat(time) {
     if not isFullMatch(time, '[0-9]{14}') {
         throw ValueError('illegal time format: ' time)
@@ -35,11 +38,17 @@ quit(msg) {
     SetTimer(ExitApp, -2900)
 }
 
+backupIni := 'backup.ini'
+if not FileExist(backupIni) {
+    quit('同目录下缺失"' backupIni '"文件')
+    return
+}
+
 accumulator(dirMap, line) {
-    a := StrSplit(line, '=', ' `t', 2)
     if startsWith(line, ';') {
         return
     }
+    a := StrSplit(line, '=', ' `t', 2)
     if a.Length != 2 {
         quit('语法错误：' line)
         stop()
@@ -48,17 +57,12 @@ accumulator(dirMap, line) {
         quit('存档路径不存在：' a[2])
         stop()
     }
-    dirMap[a[1]] := a[2]
+    b := StrSplit(a[1], ':', ' ', 2)
+    dirMap[b[1]] := [b.Length == 2 ? b[2] : '', a[2]]
 }
 
-backupIni := 'backup.ini'
-if not FileExist(backupIni) {
-    quit('同目录下缺失"' backupIni '"文件')
-    return
-}
-
-dirMap := Seq.readlines(backupIni).reduce(Map(), accumulator)
-if dirMap.Count == 0 {
+procDirMap := seqReadlines(backupIni).reduce(Map(), accumulator)
+if procDirMap.Count == 0 {
     quit('无存档配置')
     return
 }
@@ -66,19 +70,29 @@ if dirMap.Count == 0 {
 backupDir := A_WorkingDir
 
 
-class BackupContext {
+exitGuiWith(msg, sec) {
+    exitGui(, g => display(msg, sec, true))
+    for k in cmdMap {
+        cmdMap[k] := nothing
+    }
+}
+
+class BackupHelper {
     __New(proc, src) {
         this.proc := proc
         this.src := src
         this.target := backupDir '\' proc
         this.saves := scanFilesLatest(this.target, , 'D').map(fileName).toArray()
-        this.entries := amap(this.saves, f => StrSplit(f, '#'))
-        this.entries.Push(['', '', ''])
-        scanFiles(this.target).find(&headFile, f => not fileExt(f))
-        this.head := IsSet(headFile) ? fileName(headFile) : ''
+        this.entries := aMap(this.saves, f => StrSplit(f, '#'))
+        this.entries.Push(['', '', '[双击打开路径]'])
+        this.head := scanFiles(this.target).findMaybe(f => not fileExt(f)).mapOr(fileName, '')
     }
 
     saveFiles(suffix := '*') {
+        g := makeGlobalGui(appName, '微软雅黑')
+        gc := g.AddEdit('r1 w300', '新建备份')
+        showGui()
+
         onEnter(ed) {
             saveName := ed.Value
             if isFullMatch(saveName, '\s*') {
@@ -88,15 +102,16 @@ class BackupContext {
                 return '不能包含非法字符`n\/:*?"<>|'
             }
             srcFiles := scanFiles(this.src).cache()
-            srcFiles.map(fileModifiedTime).max(&latestTime)
-            if not IsSet(latestTime) {
+            if not srcFiles.map(fileModifiedTime).max(&latestTime) {
                 return '无可备份文件'
             }
             timestamp := timeEncode(latestTime)
             for i, e in this.entries {
                 if e[1] == timestamp {
-                    DirMove(this.target '\' this.saves[i], this.target '\' e[1] '#' e[2] '#' saveName, 'R')
-                    display(saveName ' - (最新存档)已重命名', , , true)
+                    if popupYesNo('重命名存档', '已有最新存档: ' e[3] '`n是否重命名') {
+                        this.renameSave(this.saves[i], e[1], e[2], saveName)
+                        exitGuiWith(saveName ' - 已重命名', 3)
+                    }
                     return
                 }
             }
@@ -112,20 +127,43 @@ class BackupContext {
             }
             exitGuiWith(saveName ' - 已保存', 3)
         }
-        readInput(() => makeGui(, '微软雅黑'), , '存档名称', onEnter)
+        cmdMap['onEnter'] := wrapCmd(gc, onEnter)
     }
 
-    recoverFiles() {
+    showSaves() {
         size := this.entries.Length
         if size <= 1 {
             display('暂无备份')
+            return
+        }
+        bad := seqOf(this.entries).filter(e => e.Length < 3).map(e => e[1]).toArray()
+        if bad.Length > 0 {
+            if popupYesNo('归档确认', '发现以下未归档备份：`n`n'
+                join(bad, '`n') '`n`n'
+                '是否统一归档(Y)或删除(N)`n'
+                '归档后将按时间顺序视为连续继承')
+            {
+                seqReverse(bad).fold('', (parent, folder) => (
+                    id := timeEncode(FileGetTime(this.target '\' folder)),
+                    this.renameSave(folder, id, parent, folder),
+                    id
+                ))
+                msg := '备份已归档'
+            } else {
+                for folder in bad {
+                    DirDelete(this.target '\' folder, true)
+                }
+                msg := '已删除未归档备份'
+            }
+            this.updateSaves()
+            display(msg, 3, true)
             return
         }
         nodeIndexMap := Map()
         forEachIndexed(this.entries, (i, e) => nodeIndexMap[e[1]] := i)
         parentMap := range(1, size - 1).toMapWith(i => nodeIndexMap.Get(this.entries[i][2], size))
         childrenMap := range(1, size - 1).groupBy(i => parentMap[i], i => i)
-        tree := gen(size, () => repeat(size, ' '))
+        tree := aRepeatBy(size, () => aRepeat(size, ' '))
 
         foundHead := false
         fillNode(i, j) {
@@ -139,30 +177,30 @@ class BackupContext {
                 return j
             }
             children := childrenMap[i]
-            end := j
-            for cOrd, c in children {
-                if cOrd == 1 {
-                    for k in range(c + 1, i - 1) {
-                        tree[k][j] := '│'
-                    }
-                    end := fillNode(c, j)
-                } else {
-                    for k in range(j + 1, end) {
-                        tree[i][k] := '┴'
-                    }
-                    tree[i][end + 1] := '└'
-                    for k in range(c + 1, i - 1) {
-                        tree[k][end + 1] := '│'
-                    }
-                    end := fillNode(c, end + 1)
+            first := children[1]
+            for k in range(first + 1, i - 1) {
+                tree[k][j] := '│'
+            }
+            end := fillNode(first, j)
+            count := children.Length
+            for cIndex in range(2, count) {
+                for k in range(j + 1, end) {
+                    tree[i][k] := '─'
                 }
+                j := end + 1
+                tree[i][j] := cIndex < count ? '┴' : '└'
+                c := children[cIndex]
+                for k in range(c + 1, i - 1) {
+                    tree[k][end + 1] := '│'
+                }
+                end := fillNode(c, end + 1)
             }
             return end
         }
         end := fillNode(size, 1)
 
         beautifyRow(row) {
-            a := repeat((end << 1) - 1, ' ')
+            a := aRepeat((end << 1) - 1, ' ')
             for i in range(1, end) {
                 s := row[i]
                 a[(i << 1) - 1] := s
@@ -170,12 +208,13 @@ class BackupContext {
                     a[(i << 1) - 2] := '─'
                 }
             }
-            return join(reverse(a))
-
+            return seqReverse(a).join()
         }
-        after := amap(tree, beautifyRow)
-        rows := amapIndexed(this.entries, (i, e) => [after[i] ' ' e[3], readableTime(timeDecode(e[1]))])
+        rows := aMapIndexed(this.entries, (i, e) => [beautifyRow(tree[i]) ' ' e[3], readableTime(timeDecode(e[1]))])
 
+        lv := listViewAll(['存档树', '时间'], rows, () => makeGlobalGui(appName))
+        lv.OnEvent('DoubleClick', (gc, index) => index == size ? Run(this.target) : 0)
+        
         onEnter(lv) {
             index := lv.GetNext()
             if index < size {
@@ -186,42 +225,56 @@ class BackupContext {
                 return '虚拟根节点'
             }
         }
+        cmdMap['onEnter'] := wrapCmd(lv, onEnter)
+        
         onShiftUp(lv) {
             index := lv.GetNext()
-            if childrenMap.Has(index) {
-                lvSelect(lv, childrenMap[index][1])
+            if mGet(childrenMap, index, &cr) {
+                SendInput('{Up ' index - cr[1] '}')
             }
         }
+        cmdMap['onShiftUp'] := wrapCmd(lv, onShiftUp)
+        
         onShiftDown(lv) {
-            lvSelect(lv, parentMap[lv.GetNext()])
+            index := lv.GetNext()
+            if index < size {
+                SendInput('{Down ' parentMap[index] - index '}')
+            }
         }
-        onShiftDel(lv) {
+        cmdMap['onShiftDown'] := wrapCmd(lv, onShiftDown)
+        
+        onDel(lv) {
             index := lv.GetNext()
             if index == size {
                 return
             }
             parent := parentMap[index]
-            if childrenMap.Has(index) {
-                children := childrenMap[index]
-                if children.Length > 1 {
-                    return '存在多个子节点 无法删除'
-                }
-                child := children[1]
-                this.changeParent(child, parent)
-            } else {
-                if this.entries[index][1] == this.head and parent < size {
-                    this.changeHead(parent)
-                }
+            if mGet(childrenMap, index, &children) and children.Length > 1 {
+                return '存在多个子节点 无法删除'
             }
-            this.delSave(index)
-            exitGuiWith(this.entries[index][3] ' - 已删除', 3)
-            BackupContext(this.proc, this.src).recoverFiles()
+            curr := this.entries[index]
+            if not popupYesNo('删除存档', '是否删除存档：' curr[3]) {
+                return
+            }
+            if IsSet(children) {
+                this.changeParent(children[1], parent)
+            }
+            if curr[1] == this.head and parent < size {
+                this.changeHead(parent)
+            }
+            DirDelete(this.target '\' this.saves[index], true)
+            exitGuiWith(curr[3] ' - 已删除', 4)
+            this.updateSaves()
         }
-        listViewAll(['存档', '时间'], rows, , onEnter, onShiftUp, onShiftDown, onShiftDel)
+        cmdMap['onDel'] := wrapCmd(lv, onDel)
     }
 
-    delSave(index) {
-        DirDelete(this.target '\' this.saves[index], true)
+    updateSaves() {
+        BackupHelper(this.proc, this.src).showSaves()
+    }
+
+    renameSave(from, id, parent, name) {
+        DirMove(this.target '\' from, this.target '\' id '#' parent '#' name, 'R')
     }
 
     changeHead(index) {
@@ -231,23 +284,58 @@ class BackupContext {
     changeParent(index, parent) {
         src := this.entries[index]
         des := this.entries[parent]
-        DirMove(this.target '\' this.saves[index], this.target '\' src[1] '#' des[1] '#' src[3], 'R')
+        this.renameSave(this.saves[index], src[1], des[1], src[3])
     }
 }
 
-#F6:: {
+
+#HotIf isWinActive('AutoHotkey64', appName)
+Enter:: cmdMap['onEnter'].Call()
++Up:: cmdMap['onShiftUp'].Call()
++Down:: cmdMap['onShiftDown'].Call()
++Left:: cmdMap['onShiftLeft'].Call()
++Right:: cmdMap['onShiftLeft'].Call()
+Del:: cmdMap['onDel'].Call()
+F1:: {
+    g := makeGui('快捷键列表', g => g.Destroy())
+    g.SetFont('s9', 'consolas')
+    g.Opt('ToolWindow')
+    lines := [
+        '游戏或工作界面',
+        'Win+F6  : 新建存档备份',
+        'Win+F7  : 打开存档树',
+        'Win+F8  : 显示当前程序名',
+        'Win+F9  : 显示当前窗口标题',
+        '',
+        '本应用界面',
+        'ESC     : 退出当前窗口',
+        'F1      : 快捷键列表',
+        '',
+        '存档树界面',
+        '↑       : 向上（较新存档）',
+        '↓       : 向下（较旧存档）',
+        'Shift+↑ : 向上跳转最新子节点',
+        'Shift+↓ : 向下跳转父节点',
+        'Delete  : 删除存档',
+        '',
+        '确认界面',
+        'Y       : 是',
+        'N       : 否'
+    ]
+    g.AddText('w190', join(lines, '`n'))
+    g.Show()
+}
+#HotIf
+
+runBackupHelper(action) {
     proc := procName()
-    src := dirMap.Get(proc, '')
-    if src {
-        ac := BackupContext(proc, src)
-        ac.saveFiles()
+    if mGet(procDirMap, proc, &pair) {
+        titlePattern := pair[1]
+        if isWinTitleMatch(titlePattern) {
+            action(BackupHelper(proc, pair[2]))
+        }
     }
 }
-#F7:: {
-    proc := procName()
-    src := dirMap.Get(proc, '')
-    if src {
-        ac := BackupContext(proc, src)
-        ac.recoverFiles()
-    }
-}
+
+#F6:: runBackupHelper(bh => bh.saveFiles())
+#F7:: runBackupHelper(bh => bh.showSaves())

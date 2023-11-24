@@ -1,5 +1,5 @@
 #Include seq.ahk
-#Include utils.ahk
+#Include strings.ahk
 
 
 scanFiles(dir, suffix := '*', mode := 'F') {

@@ -1,22 +1,19 @@
 #Include files.ahk
-#Include arrays.ahk
+#Include strings.ahk
 
 
 globalGui := unset
 globalDisplaySeconds := 0
 displaying := unset
-onEnterCmd := nothing
-onShiftUpCmd := nothing
-onShiftDownCmd := nothing
-onShiftDelCmd := nothing
-ahkWin := toExe('AutoHotkey64')
 
+nothing(*) {
+}
 
 display(msg, sec := 3, followGui := false, copy := false) {
     global displaying
     displaying := IsSet(displaying) ? displaying '`n' msg : msg
     if followGui {
-        ToolTip(displaying, 0, -22)
+        ToolTip(displaying, 0, -14)
     } else {
         ToolTip(displaying)
     }
@@ -31,56 +28,40 @@ displayAll(sec, msg*) {
     display(join(msg, '`n'), sec)
 }
 
-makeGui(fontOpt := 's10', font := 'consolas') {
+makeGlobalGui(title?, font := 'consolas', fontOpt := 's10') {
     global globalGui
     if IsSet(globalGui) {
         globalGui.Destroy()
     }
-    globalGui := Gui()
+    globalGui := IsSet(title) ? makeGui(title, exitGui) : makeGui(, exitGui)
     globalGui.SetFont(fontOpt, font)
-    globalGui.OnEvent('Escape', g => exitGui())
-    globalGui.Opt('-Caption')
     return globalGui
 }
 
-nothing(*) {
+makeGui(title?, onEscape?) {
+    g := Gui()
+    if IsSet(title) {
+        g.Title := title
+    } else {
+        g.Opt('-Caption')
+    }
+    if IsSet(onEscape) {
+        g.OnEvent('Escape', onEscape)
+    }
+    return g
 }
 
-setOnEnter(cmd) {
-    global onEnterCmd
-    onEnterCmd := cmd
+_destroyGui(g) {
+    g.Destroy()
 }
 
-setOnShiftUp(cmd) {
-    global onShiftUpCmd
-    onShiftUpCmd := cmd
-}
-
-setOnShiftDown(cmd) {
-    global onShiftDownCmd
-    onShiftDownCmd := cmd
-}
-
-setOnShiftDel(cmd) {
-    global onShiftDelCmd
-    onShiftDelCmd := cmd
-}
-
-exitGuiWith(msg, sec) {
-    exitGui(g => display(msg, sec, true))
-}
-
-exitGui(preAction?) {
+exitGui(g?, preAction?) {
+    global globalGui
     if IsSet(preAction) {
         preAction(globalGui)
     }
-    global globalGui, onEnterCmd, onShiftUpCmd, onShiftDownCmd, onShiftDelCmd
     globalGui.Destroy()
     globalGui := unset
-    onEnterCmd := nothing
-    onShiftUpCmd := nothing
-    onShiftDownCmd := nothing
-    onShiftDelCmd := nothing
 }
 
 showGui() {
@@ -92,7 +73,7 @@ centerWindow() {
     WinMove((A_ScreenWidth / 2) - (width / 2), (A_ScreenHeight / 2) - (height / 2), , , 'A')
 }
 
-gcWrapCmd(gc, callback) {
+wrapCmd(gc, callback) {
     cmd() {
         msg := callback(gc)
         if msg {
@@ -103,41 +84,17 @@ gcWrapCmd(gc, callback) {
     return cmd
 }
 
-readInput(guiMaker := makeGui, editOpt := 'r1 w300', defaultText := '', onEnter?) {
-    g := guiMaker()
-    gc := g.AddEdit(editOpt, defaultText)
-    if IsSet(onEnter) {
-        setOnEnter(gcWrapCmd(gc, onEnter))
-    }
-    showGui()
+popupYesNo(title, text) {
+    return MsgBox(text, title, 'YesNo') == 'Yes'
 }
 
-listAll(a, guiMaker := makeGui, destroyOnConfirm := true, onEnter := display) {
-    if a.Length = 0 {
-        throw MethodError('Empty list')
-    }
-    g := guiMaker()
-    amaxBy(a, &_, StrLen, &maxLen)
-    width := 12 * (maxLen + 1)
-    box := g.AddListBox('w' width ' r' a.Length, a)
-    box.Choose(1)
-    onConfirm(gc, index) {
-        onEnter(index)
-        if destroyOnConfirm {
-            exitGui()
-        }
-    }
-    box.OnEvent('DoubleClick', onConfirm)
-    showGui()
-}
-
-edgeMap := Seq.all('│', '└', '┴', '─', '╪', '┼').toMapWith(Ord)
+edgeMap := seqAll('│', '└', '┴', '─', '╪', '┼').toMapWith(Ord)
 
 estimateLen(str) {
-    return asum(StrSplit(str), c => Ord(c) < 128 or edgeMap.Has(c) ? 7.5 : 15)
+    return aSum(StrSplit(str), c => Ord(c) < 128 or edgeMap.Has(c) ? 7.5 : 15)
 }
 
-listViewAll(titles, rows, guiMaker := makeGui, onEnter?, onShiftUp?, onShiftDown?, onShiftDel?) {
+listViewAll(titles, rows, guiMaker := makeGlobalGui, maxHeight := 30) {
     if rows.Length = 0 {
         throw ValueError('Empty list')
     }
@@ -148,13 +105,13 @@ listViewAll(titles, rows, guiMaker := makeGui, onEnter?, onShiftUp?, onShiftDown
     g := guiMaker()
 
     estColWidth(i) {
-        amaxBy(rows, &_, r => estimateLen(r[i]), &maxLen)
+        aMaxBy(rows, &_, r => estimateLen(r[i]), &maxLen)
         return Max(maxLen, estimateLen(titles[i]))
     }
-    width := 11 * colNum + asum(range(1, colNum), estColWidth)
-    height := Min(rows.Length, 30)
+    width := 11 * colNum + aSum(range(1, colNum), estColWidth)
+    height := Min(rows.Length, maxHeight)
     if height < rows.Length {
-        width += 5
+        width += 11
     }
     lv := g.AddListView('-Multi +NoSortHdr w' width ' r' height, titles)
     forEach(rows, row => lv.Add(, row*))
@@ -162,20 +119,8 @@ listViewAll(titles, rows, guiMaker := makeGui, onEnter?, onShiftUp?, onShiftDown
     lv.ModifyCol()
     lv.ModifyCol(colNum, 'AutoHdr')
     lvSelect(lv, 1)
-
-    if IsSet(onEnter) {
-        setOnEnter(gcWrapCmd(lv, onEnter))
-    }
-    if IsSet(onShiftUp) {
-        setOnShiftUp(gcWrapCmd(lv, onShiftUp))
-    }
-    if IsSet(onShiftDown) {
-        setOnShiftDown(gcWrapCmd(lv, onShiftDown))
-    }
-    if IsSet(onShiftDel) {
-        setOnShiftDel(gcWrapCmd(lv, onShiftDel))
-    }
     showGui()
+    return lv
 }
 
 lvSelect(lv, i) {
@@ -191,20 +136,23 @@ procName() {
     return SubStr(WinGetProcessName('A'), 1, -4)
 }
 
+isWinTitleMatch(pattern) {
+    return isWildcardMatch(WinGetTitle('A'), pattern)
+}
 
-#HotIf WinActive(toExe('AutoHotkey64'))
-Enter:: onEnterCmd()
-+Up:: onShiftUpCmd()
-+Down:: onShiftDownCmd()
-+Del:: onShiftDelCmd()
-#HotIf
+isWinActive(procName, titlePattern?) {
+    return WinActive(toExe(procName)) and (
+        not IsSet(titlePattern) or not titlePattern
+        or isWinTitleMatch(titlePattern)
+    )
+}
 
 
 #F5:: Reload
 #F8:: display(procName())
-
+#F9:: display(WinGetTitle('A'))
 
 ; listViewAll(['a', 'b', 'c'], [['jifdajifjdaijfjjijijif', 'fsdajifdajofjaosuff', 'jijfidajifjaifjiaufodiuafiufasof']])
 ; listViewAll(['a', 'b', 'c'], [['jifdajifjdaijfj', 'fsda', 'jijfidajifjaifjia']])
 ; listViewAll(['a', 'b', 'c'], [['jij', 'fsj', 'jij']])
-; listViewAll(['a', 'b', 'c'], [['吃饭喝水荡秋千', '人人都是大坏蛋', 'jijfidajifjaifjiaufodiuafiufasof']])
+; listViewAll(['a', 'b', 'c'], [['人间四月芳菲尽', '一蓑烟雨任平生', 'jijfidajifjaifjiaufodiuafiufasof']])

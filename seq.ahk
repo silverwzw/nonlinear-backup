@@ -2,7 +2,7 @@ _arrayPusher := (des, s) => des.Push(s)
 _strConcat := (acc, s) => acc s
 _void := {}
 
-class StopError extends Error {
+class StopError extends ValueError {
 }
 _stopError := StopError()
 
@@ -22,7 +22,7 @@ class Seq {
     consume(consumer) {
         try
             this.consumerConsumer.Call(consumer)
-        catch StopError {
+        catch StopError as e {
         }
     }
 
@@ -40,86 +40,6 @@ class Seq {
         i := 1
         this.consume(t => indexedConsumer(i++, t))
         return i
-    }
-
-    static of(a) {
-        return ItrSeq(a)
-    }
-
-    static all(x*) {
-        return ItrSeq(x)
-    }
-
-    static pairs(m) {
-        fun(consumer) {
-            for t1, t2 in m
-                consumer(Pair(t1, t2))
-        }
-        return Seq(fun)
-    }
-
-    static genBy(seed, unaryMapper) {
-        fun(c) {
-            t := seed
-            c(t)
-            while true {
-                c(t := unaryMapper(t))
-            }
-        }
-        return Seq(fun)
-    }
-
-    static genByTwo(seed1, seed2, binaryMapper) {
-        fun(c) {
-            t1 := seed1
-            t2 := seed2
-            c(t1)
-            c(t2)
-            while true {
-                next := binaryMapper(t1, t2)
-                c(next)
-                t1 := t2
-                t2 := next
-            }
-        }
-        return Seq(fun)
-    }
-
-    static readlines(fileName, encoding?) {
-        read() {
-            fileObj := FileOpen(fileName, 'r', encoding?)
-            call(&line) {
-                if not fileObj.AtEOF {
-                    line := fileObj.ReadLine()
-                    return true
-                }
-                fileObj.Close()
-                return false
-            }
-            return call
-        }
-        return EnumSeq(read)
-    }
-
-    static split(s, sep, limit := -1) {
-        fun(consumer) {
-            n := 0
-            loop parse s, sep {
-                consumer(A_LoopField)
-                if limit > 0 and ++n == limit {
-                    break
-                }
-            }
-        }
-        return Seq(fun)
-    }
-
-    static repeat(n, t) {
-        fun() {
-            i := 0
-            return (&x) => (x := t, i++ < n)
-        }
-        return EnumSeq(fun)
     }
 
     map(mapper) {
@@ -219,18 +139,15 @@ class Seq {
     }
 
     any(test, ifFound := true) {
-        this.find(&res, test)
-        return IsSet(res)
+        return this.find(&res, test)
     }
 
     all(test) {
-        this.find(&res, negate(test))
-        return not IsSet(res)
+        return not this.find(&res, negate(test))
     }
 
     none(test) {
-        this.find(&res, test)
-        return not IsSet(res)
+        return not this.find(&res, test)
     }
 
     first(&res) {
@@ -241,6 +158,10 @@ class Seq {
         this.consume(fun)
     }
 
+    firstMaybe() {
+        return Maybe(this.first)
+    }
+
     find(&res, test) {
         fun(t) {
             if test(t) {
@@ -249,6 +170,11 @@ class Seq {
             }
         }
         this.consume(fun)
+        return IsSet(res)
+    }
+
+    findMaybe(test) {
+        return Maybe((&t) => this.find(&t, test))
     }
 
     count(test?) {
@@ -298,6 +224,7 @@ class Seq {
             }
             this.consume(nonCmp)
         }
+        return IsSet(res)
     }
 
     maxBy(&res, numMapper, &val?) {
@@ -309,6 +236,7 @@ class Seq {
             }
         }
         this.consume(fun)
+        return IsSet(res)
     }
 
     min(&res, comparator?) {
@@ -327,6 +255,7 @@ class Seq {
             }
             this.consume(nonCmp)
         }
+        return IsSet(res)
     }
 
     minBy(&res, numMapper, &val?) {
@@ -338,19 +267,20 @@ class Seq {
             }
         }
         this.consume(fun)
+        return IsSet(res)
     }
 
     sort(opt := '') {
         sep := '`n'
         s := Sort(this.join(sep), opt)
-        return Seq.split(s, sep)
+        return seqSplit(s, sep)
     }
 
     sortBy(mapper, opt := '', interSep := '``') {
         sep := '`n'
         a := this.toArray()
         s := Sort(this.mapIndexed((i, t) => mapper(t) interSep i).join(sep), opt)
-        return Seq.split(s, sep).map(t => a[Integer(StrSplit(t, interSep)[2])])
+        return seqSplit(s, sep).map(t => a[Integer(StrSplit(t, interSep)[2])])
     }
 
     toArray(mapper?) {
@@ -364,7 +294,7 @@ class Seq {
     }
 
     cache() {
-        return Seq.of(this.toArray())
+        return seqOf(this.toArray())
     }
 
     toMap(keyMapper, valueMapper) {
@@ -424,6 +354,90 @@ class Seq {
     }
 }
 
+seqOf(a) {
+    return ItrSeq(a)
+}
+
+seqAll(x*) {
+    return ItrSeq(x)
+}
+
+seqReverse(a) {
+    return range(a.Length, 1, -1).map(i => a[i])
+}
+
+seqPairs(m) {
+    fun(consumer) {
+        for t1, t2 in m
+            consumer(Pair(t1, t2))
+    }
+    return Seq(fun)
+}
+
+seqGenBy(seed, unaryMapper) {
+    fun(c) {
+        t := seed
+        c(t)
+        while true {
+            c(t := unaryMapper(t))
+        }
+    }
+    return Seq(fun)
+}
+
+seqGenByTwo(seed1, seed2, binaryMapper) {
+    fun(c) {
+        t1 := seed1
+        t2 := seed2
+        c(t1)
+        c(t2)
+        while true {
+            next := binaryMapper(t1, t2)
+            c(next)
+            t1 := t2
+            t2 := next
+        }
+    }
+    return Seq(fun)
+}
+
+seqReadlines(fileName, encoding?) {
+    read() {
+        fileObj := FileOpen(fileName, 'r', encoding?)
+        call(&line) {
+            if not fileObj.AtEOF {
+                line := fileObj.ReadLine()
+                return true
+            }
+            fileObj.Close()
+            return false
+        }
+        return call
+    }
+    return EnumSeq(read)
+}
+
+seqSplit(s, sep, limit := -1) {
+    fun(consumer) {
+        n := 0
+        loop parse s, sep {
+            consumer(A_LoopField)
+            if limit > 0 and ++n == limit {
+                break
+            }
+        }
+    }
+    return Seq(fun)
+}
+
+seqRepeat(n, t) {
+    fun() {
+        i := 0
+        return (&x) => (x := t, i++ < n)
+    }
+    return EnumSeq(fun)
+}
+
 class ItrSeq extends Seq {
     __New(a) {
         this._a := a
@@ -434,14 +448,20 @@ class ItrSeq extends Seq {
     }
 
     consume(consumer) {
-        for t in this {
-            consumer(t)
+        try {
+            for t in this {
+                consumer(t)
+            }
+        } catch StopError {
         }
     }
 
     consumeIndexed(indexedConsumer) {
-        for i, t in this {
-            indexedConsumer(i, t)
+        try {
+            for i, t in this {
+                indexedConsumer(i, t)
+            }
+        } catch StopError {
         }
     }
 

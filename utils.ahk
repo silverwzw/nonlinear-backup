@@ -1,3 +1,6 @@
+#Include arrays.ahk
+
+
 startsWith(str, sub) {
     len := StrLen(sub)
     return StrLen(str) >= len and SubStr(str, 1, len) == sub
@@ -14,6 +17,25 @@ hasMatch(str, regex) {
         return RegExMatch(str, regex)
     } catch Error
         return false
+}
+
+wildcardMap := unset
+
+isWildcardMatch(str, pattern) {
+    global wildcardMap
+    if not IsSet(wildcardMap) {
+        wildcardMap := Map()
+        wildcardMap['?'] := '.'
+        wildcardMap['*'] := '.*'
+        wildcardMap['.'] := '\.'
+        wildcardMap['+'] := '\+'
+        wildcardMap['('] := '\('
+        wildcardMap['['] := '\['
+        wildcardMap['{'] := '\{'
+        wildcardMap['\'] := '\\'
+    }
+    regex := seqSplit(pattern, '').map(c => wildcardMap.Get(c, c)).join()
+    return isFullMatch(str, regex)
 }
 
 isFullMatch(str, regex) {
@@ -47,11 +69,19 @@ copySelection() {
     return A_Clipboard
 }
 
-formatArray(a) {
+sRepeat(n, str) {
+    acc := ''
+    loop n {
+        acc .= str
+    }
+    return acc
+}
+
+aFormat(a) {
     return '[' join(a, ', ') ']'
 }
 
-formatMap(m, valueMapper?) {
+mFormat(m, valueMapper?) {
     a := []
     for k, v in m {
         a.Push(k ': ' (IsSet(valueMapper) ? valueMapper(v) : v))
