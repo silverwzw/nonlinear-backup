@@ -1,3 +1,4 @@
+#SingleInstance Force
 #Include files.ahk
 #Include strings.ahk
 
@@ -113,7 +114,7 @@ listViewAll(titles, rows, guiMaker := makeGlobalGui, maxHeight := 30) {
     if height < rows.Length {
         width += 11
     }
-    lv := g.AddListView('-Multi +NoSortHdr w' width ' r' height, titles)
+    lv := g.AddListView('+NoSortHdr w' width ' r' height, titles)
     forEach(rows, row => lv.Add(, row*))
 
     lv.ModifyCol()

@@ -48,17 +48,18 @@ accumulator(dirMap, line) {
     if startsWith(line, ';') {
         return
     }
-    a := StrSplit(line, '=', ' `t', 2)
+    a := StrSplit(line, '=', ' ', 2)
     if a.Length != 2 {
         quit('语法错误：' line)
         stop()
     }
-    if not FileExist(a[2]) {
+    a2 := StrSplit(a[2], ',', ' ', 2)
+    if not FileExist(a2[1]) {
         quit('存档路径不存在：' a[2])
         stop()
     }
-    b := StrSplit(a[1], ':', ' ', 2)
-    dirMap[b[1]] := [aGetOr(b, 2, ''), a[2]]
+    a1 := StrSplit(a[1], ':', ' ', 2)
+    dirMap[a1[1]] := [aGetOr(a1, 2, ''), a2[1], aGetOr(a2, 2, '*')]
 }
 
 procDirMap := seqReadlines(backupIni).reduce(Map(), accumulator)
@@ -78,9 +79,10 @@ exitGuiWith(msg, sec) {
 }
 
 class BackupHelper {
-    __New(proc, src) {
+    __New(proc, src, filePattern) {
         this.proc := proc
         this.src := src
+        this.filePattern := filePattern
         this.target := backupDir '\' proc
         this.saves := scanFilesLatest(this.target, , 'D').map(fileName).toArray()
         this.entries := aMap(this.saves, f => StrSplit(f, '#'))
@@ -88,7 +90,7 @@ class BackupHelper {
         this.head := scanFiles(this.target).findMaybe(f => not fileExt(f)).mapOr(fileName, '')
     }
 
-    saveFiles(suffix := '*') {
+    saveFiles() {
         g := makeGlobalGui(appName, '微软雅黑')
         gc := g.AddEdit('r1 w300', '新建备份')
         showGui()
@@ -101,7 +103,7 @@ class BackupHelper {
             if hasMatch(saveName, '[\\/:*?"<>|]') {
                 return '不能包含非法字符`n\/:*?"<>|'
             }
-            srcFiles := scanFiles(this.src).cache()
+            srcFiles := scanFiles(this.src, this.filePattern).cache()
             if not srcFiles.map(fileModifiedTime).max(&latestTime) {
                 return '无可备份文件'
             }
@@ -270,7 +272,7 @@ class BackupHelper {
     }
 
     updateSaves() {
-        BackupHelper(this.proc, this.src).showSaves()
+        BackupHelper(this.proc, this.src, this.filePattern).showSaves()
     }
 
     renameSave(from, id, parent, name) {
@@ -329,10 +331,10 @@ F1:: {
 
 runBackupHelper(action) {
     proc := procName()
-    if mGet(procDirMap, proc, &pair) {
-        pattern := pair[1]
-        if not pattern or isWinTitleMatch(pattern) {
-            action(BackupHelper(proc, pair[2]))
+    if mGet(procDirMap, proc, &titlePathFiles) {
+        title := titlePathFiles[1]
+        if not title or isWinTitleMatch(title) {
+            action(BackupHelper(proc, titlePathFiles[2], titlePathFiles[3]))
         }
     }
 }
