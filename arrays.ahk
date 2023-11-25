@@ -64,6 +64,10 @@ aReverse(a) {
     return aMapIndexed(a, (i, t) => a[-i])
 }
 
+aGetOr(a, index, default) {
+    return index <= a.Length ? a[index] : default
+}
+
 aMap(a, mapper) {
     b := []
     for t in a {

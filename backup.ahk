@@ -58,7 +58,7 @@ accumulator(dirMap, line) {
         stop()
     }
     b := StrSplit(a[1], ':', ' ', 2)
-    dirMap[b[1]] := [b.Length == 2 ? b[2] : '', a[2]]
+    dirMap[b[1]] := [aGetOr(b, 2, ''), a[2]]
 }
 
 procDirMap := seqReadlines(backupIni).reduce(Map(), accumulator)
@@ -139,7 +139,7 @@ class BackupHelper {
         bad := seqOf(this.entries).filter(e => e.Length < 3).map(e => e[1]).toArray()
         if bad.Length > 0 {
             if popupYesNo('归档确认', '发现以下未归档备份：`n`n'
-                join(bad, '`n') '`n`n'
+                join(bad, '`n', f => '- ' f) '`n`n'
                 '是否统一归档(Y)或删除(N)`n'
                 '归档后将按时间顺序视为连续继承')
             {
@@ -289,7 +289,7 @@ class BackupHelper {
 }
 
 
-#HotIf isWinActive('AutoHotkey64', appName)
+#HotIf isWinActive('backup', appName)
 Enter:: cmdMap['onEnter'].Call()
 +Up:: cmdMap['onShiftUp'].Call()
 +Down:: cmdMap['onShiftDown'].Call()
@@ -330,8 +330,8 @@ F1:: {
 runBackupHelper(action) {
     proc := procName()
     if mGet(procDirMap, proc, &pair) {
-        titlePattern := pair[1]
-        if isWinTitleMatch(titlePattern) {
+        pattern := pair[1]
+        if not pattern or isWinTitleMatch(pattern) {
             action(BackupHelper(proc, pair[2]))
         }
     }

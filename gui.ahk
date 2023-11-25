@@ -77,7 +77,7 @@ wrapCmd(gc, callback) {
     cmd() {
         msg := callback(gc)
         if msg {
-            display(msg, 1, true)
+            display(msg, 2, true)
             return
         }
     }
