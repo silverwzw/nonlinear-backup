@@ -342,10 +342,6 @@ F1:: {
         'Enter   : 恢复存档',
         'Delete  : 删除存档',
         'RButton : 重设父节点',
-        '',
-        '确认界面',
-        'Y       : 是',
-        'N       : 否'
     ]
     g.AddText('w190', join(lines, '`n'))
     g.Show()
