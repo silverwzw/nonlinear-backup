@@ -8,7 +8,7 @@
 
 它的英文叫Nonlinear Backup，刚好缩写为NB。
 
-![](images/liesofp.png)![](image/README/liesofp.png)
+![匹诺曹的谎言](image/README/liesofp.png)
 
 ## 面向游戏佬
 
@@ -20,7 +20,7 @@
 
 尤其是肉鸽游戏，只要它能像noita那样支持局内存档，那借助这样的备份工具，立马变成RPG。
 
-![](image/README/noita.png)
+![Noita](image/README/noita.png)
 
 ## 面向创造性工作者
 
@@ -30,7 +30,7 @@
 
 如果有一款软件，能够像Git那样记录提交历史，自由切换分支，并可随时查看各个存档的依赖关系，回退历史版本。那无疑能帮助创作者降低大量心智负担，鼓励他们进行更多探索和尝试。
 
-![img](image/README/code.png)
+![VS Code](image/README/code.png)
 
 ## 功能演示
 
@@ -40,19 +40,19 @@
 
 在游戏内，按 `Win+F6` 打开新建备份窗口，完成后按 `Enter` 即可保存当前最新存档，实现SL大法的S。中途按 `Ecs` 则直接退出。
 
-![](image/README/save.gif)
+![新建备份](image/README/save.gif)
 
 ### 查看存档树
 
 在游戏内，按 `Win+F7` 打开存档树窗口，按 `↑↓` 切换存档，按 `Ctrl+↑↓` 跳转子存档与父存档。
 
-![](image/README/jump.gif)
+![查看存档树](image/README/jump.gif)
 
 ### 查看快捷键提示
 
 在新建界面和存档树查看界面，均可以使用 `F1` 打开快捷键提示。
 
-![](image/README/help.gif)
+![查看快捷键](image/README/help.gif)
 
 ### 恢复存档
 
@@ -60,7 +60,7 @@
 
 需要注意的是，很多游戏都只在关键存档点和退出游戏时才会将当前最新的游戏进度保存下来，所以若要使用本软件备份存档，请务必退出当前游戏到主菜单界面在进行操作。
 
-![](image/README/recover.gif)
+![恢复存档](image/README/recover.gif)
 
 ### 删除存档
 
@@ -68,7 +68,7 @@
 
 这种时候，你都可以通过按 `Delete` 键来删除存档。
 
-![](image/README/delete.gif)
+![删除存档](image/README/delete.gif)
 
 ### 变更父存档
 
@@ -76,7 +76,7 @@
 
 使用 `Ctrl`加鼠标左键选择两个存档，然后点击鼠标右键。如果二者原本就是直接的父子继承，则取消关系，将新存档重新关联到根节点下。如果二者原本不是父子关系，则重新绑定为父子。
 
-![](image/README/rebind.gif)
+![变更父存档](image/README/rebind.gif)
 
 ## 如何使用
 
@@ -96,7 +96,7 @@
 
 配置文件的格式示例如下
 
-```ini
+```txt
 ; 本软件的本地开发源代码存档
 Code:*nonlinear-backup* = D:\gitee\nonlinear-backup
 ; 游戏《匹诺曹的谎言》存档
@@ -113,7 +113,7 @@ DSPGAME = C:\Users\ray\Documents\Dyson Sphere Program\Save, _lastexit_.dsv
 程序名[:窗口标题] = 备份路径[,文件格式]
 ```
 
-在等号左侧，首先要填的程序名可在进入程序后，按快捷键 `Win+F8`获取，页面会显示3秒并自动复制到剪贴板。对于游戏，窗口标题可以直接忽略不填，因为不同游戏程序名必然不同。但是对于一些写作之类的工作，如果你使用的是VS Code这样的通用编辑器，那有必要增加一个窗口标题限制，以便有针对性的备份。例如上面例子中的 `*nonlinear-backup*`，其中的 `*`号就是作为通配符，含义为标题中只要存在 `nonlinear-backup`，就视为该指定项目。窗口标题可通过快捷键 `Win+F9`获取。
+在等号左侧，首先要填的程序名可在进入程序后，按快捷键 `Win+F8` 获取，页面会显示3秒并自动复制到剪贴板。对于游戏，窗口标题可以直接忽略不填，因为不同游戏程序名必然不同。但是对于一些写作之类的工作，如果你使用的是VS Code这样的通用编辑器，那有必要增加一个窗口标题限制，以便有针对性的备份。例如上面例子中的 `*nonlinear-backup*`，其中的 `*`号就是作为通配符，含义为标题中只要存在 `nonlinear-backup`，就视为该指定项目。窗口标题可通过快捷键 `Win+F9` 获取。
 
 而在等号右侧，备份路径需要用户自行确定，游戏的备份路径百度一下即可。例如Steam游戏通常的路径为
 
@@ -121,9 +121,9 @@ DSPGAME = C:\Users\ray\Documents\Dyson Sphere Program\Save, _lastexit_.dsv
 D:\SteamLibrary\steamapps\common\游戏名\...
 ```
 
-在填写好备份路径之后，用户可以选择性的填写文件格式。`*.txt`代表仅限 `txt`后缀的文件，`abc*.txt`则代表以 `abc`开头且后缀为 `txt`的文件。例如游戏《戴森球计划》自带存档管理，它在存档目录下的所有文件都是不同的存档，你只需要备份其中默认的存档 `_lastexit_.dsv`即可。
+在填写好备份路径之后，用户可以选择性的填写文件格式。`*.txt` 代表仅限 `txt` 后缀的文件，`abc*.txt` 则代表以 `abc` 开头且后缀为 `txt` 的文件。例如游戏《戴森球计划》自带存档管理，它在存档目录下的所有文件都是不同的存档，你只需要备份其中默认的存档 `_lastexit_.dsv` 即可。
 
-在填写配置时，所涉及到的几个关键符号 `=`, `:`, `,`左右的空格留不留都可以。程序名和路径名务必保持准确。
+在填写配置时，所涉及到的几个关键符号 `=`, `:`, `,` 左右的空格留不留都可以。程序名和路径名务必保持准确。
 
 #### 启动程序
 
