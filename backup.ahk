@@ -3,7 +3,7 @@
 
 
 appName := '非线性备份'
-cmdMap := seqAll('onEnter', 'onShiftUp', 'onShiftDown', 'onDel').toMapWith(name => nothing)
+cmdMap := seqAll('Enter', 'CtrlUp', 'CtrlDown', 'Del', 'RButton').toMapWith(name => nothing)
 
 checkTimeFormat(time) {
     if not isFullMatch(time, '[0-9]{14}') {
@@ -129,10 +129,10 @@ class BackupHelper {
             }
             exitGuiWith(saveName ' - 已保存', 3)
         }
-        cmdMap['onEnter'] := wrapCmd(gc, onEnter)
+        cmdMap['Enter'] := wrapCmd(gc, onEnter)
     }
 
-    showSaves() {
+    showSaves(selections*) {
         size := this.entries.Length
         if size <= 1 {
             display('暂无备份')
@@ -216,14 +216,14 @@ class BackupHelper {
 
         lv := listViewAll(['存档树', '时间'], rows, () => makeGlobalGui(appName))
         lv.OnEvent('DoubleClick', (gc, index) => index == size ? Run(this.target) : 0)
+        for i in selections {
+            lvSelect(lv, i)
+        }
 
         onEnter(lv) {
             selected := lvGetAllSelected(lv)
-            if selected.Length == 0 {
-                return '请选择节点'
-            }
-            else if selected.Length == 1 {
-                index := lv.GetNext()
+            if selected.Length == 1 {
+                index := selected[1]
                 if index < size {
                     FileCopy(this.target '\' this.saves[index] '\*', this.src, true)
                     this.changeHead(index)
@@ -231,32 +231,40 @@ class BackupHelper {
                 } else {
                     return '虚拟根节点'
                 }
-            } else if selected.Length == 2 {
-                i := selected[1]
-                j := selected[2]
-                this.changeParent(i, parentMap[i] == j ? size : j)
-                this.updateSaves()
-            } else {
-                return '选择节点过多'
             }
         }
-        cmdMap['onEnter'] := wrapCmd(lv, onEnter)
+        cmdMap['Enter'] := wrapCmd(lv, onEnter)
 
-        onShiftUp(lv) {
+        onRButton(lv) {
+            selected := lvGetAllSelected(lv)
+            if selected.Length == 2 {
+                i := selected[1]
+                j := selected[2]
+                p := parentMap[i]
+                if p == j and p == size {
+                    return
+                }
+                this.changeParent(i, p == j ? size : j)
+                this.updateSaves(i, j)
+            }
+        }
+        cmdMap['RButton'] := wrapCmd(lv, onRButton)
+
+        onCtrlUp(lv) {
             index := lv.GetNext()
             if mGet(childrenMap, index, &cr) {
                 SendInput('{Up ' index - cr[1] '}')
             }
         }
-        cmdMap['onShiftUp'] := wrapCmd(lv, onShiftUp)
+        cmdMap['CtrlUp'] := wrapCmd(lv, onCtrlUp)
 
-        onShiftDown(lv) {
+        onCtrlDown(lv) {
             index := lv.GetNext()
             if index < size {
                 SendInput('{Down ' parentMap[index] - index '}')
             }
         }
-        cmdMap['onShiftDown'] := wrapCmd(lv, onShiftDown)
+        cmdMap['CtrlDown'] := wrapCmd(lv, onCtrlDown)
 
         onDel(lv) {
             index := lv.GetNext()
@@ -279,13 +287,13 @@ class BackupHelper {
             }
             DirDelete(this.target '\' this.saves[index], true)
             exitGuiWith(curr[3] ' - 已删除', 4)
-            this.updateSaves()
+            this.updateSaves(index)
         }
-        cmdMap['onDel'] := wrapCmd(lv, onDel)
+        cmdMap['Del'] := wrapCmd(lv, onDel)
     }
 
-    updateSaves() {
-        BackupHelper(this.proc, this.src, this.filePattern).showSaves()
+    updateSaves(selections*) {
+        BackupHelper(this.proc, this.src, this.filePattern).showSaves(selections*)
     }
 
     renameSave(from, id, parent, name) {
@@ -304,13 +312,13 @@ class BackupHelper {
 }
 
 
-#HotIf isWinActive('backup', appName) or isWinActive('AutoHotKey64', appName)
-Enter:: cmdMap['onEnter'].Call()
-+Up:: cmdMap['onShiftUp'].Call()
-+Down:: cmdMap['onShiftDown'].Call()
-+Left:: cmdMap['onShiftLeft'].Call()
-+Right:: cmdMap['onShiftLeft'].Call()
-Del:: cmdMap['onDel'].Call()
+; #HotIf isWinActive('AutoHotKey64', appName)
+#HotIf isWinActive('backup', appName)
+Enter:: cmdMap['Enter'].Call()
+^Up:: cmdMap['CtrlUp'].Call()
+^Down:: cmdMap['CtrlDown'].Call()
+Del:: cmdMap['Del'].Call()
+RButton:: cmdMap['RButton'].Call()
 F1:: {
     g := makeGui('快捷键列表', g => g.Destroy())
     g.SetFont('s9', 'consolas')
@@ -329,9 +337,11 @@ F1:: {
         '存档树界面',
         '↑       : 向上（较新存档）',
         '↓       : 向下（较旧存档）',
-        'Shift+↑ : 向上跳转最新子节点',
-        'Shift+↓ : 向下跳转父节点',
+        'Ctrl+↑  : 向上跳转最新子节点',
+        'Ctrl+↓  : 向下跳转父节点',
+        'Enter   : 恢复存档',
         'Delete  : 删除存档',
+        'RButton : 重设父节点',
         '',
         '确认界面',
         'Y       : 是',
@@ -353,4 +363,4 @@ runBackupHelper(action) {
 }
 
 #F6:: runBackupHelper(bh => bh.saveFiles())
-#F7:: runBackupHelper(bh => bh.showSaves())
+#F7:: runBackupHelper(bh => bh.showSaves(1))

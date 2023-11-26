@@ -48,6 +48,7 @@ makeGui(title?, onEscape?) {
     }
     if IsSet(onEscape) {
         g.OnEvent('Escape', onEscape)
+        g.OnEvent('Close', onEscape)
     }
     return g
 }
@@ -119,30 +120,23 @@ listViewAll(titles, rows, guiMaker := makeGlobalGui, maxHeight := 30) {
 
     lv.ModifyCol()
     lv.ModifyCol(colNum, 'AutoHdr')
-    lvSelect(lv, 1)
     showGui()
     return lv
 }
 
-lvSelect(lv, i) {
-    lv.Modify(i, 'Focus')
-    lv.Modify(i, 'Select')
-}
-
-lvUnSelect(lv, i) {
-    lv.Modify(i, '-Focus')
-    lv.Modify(i, '-Select')
+lvSelect(lv, i, positive := true) {
+    lv.Modify(i, positive ? 'Select Focus' : '-Select -Focus')
 }
 
 lvGetAllSelected(lv) {
     fun(c) {
+        i := 0
         loop {
-            i := lv.GetNext()
-            if i == 0 {
+            i := lv.GetNext(i)
+            if not i {
                 break
             }
             c(i)
-            lvUnSelect(lv, i)
         }
     }
     return Seq(fun).toArray()
