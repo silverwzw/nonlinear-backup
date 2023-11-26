@@ -129,6 +129,25 @@ lvSelect(lv, i) {
     lv.Modify(i, 'Select')
 }
 
+lvUnSelect(lv, i) {
+    lv.Modify(i, '-Focus')
+    lv.Modify(i, '-Select')
+}
+
+lvGetAllSelected(lv) {
+    fun(c) {
+        loop {
+            i := lv.GetNext()
+            if i == 0 {
+                break
+            }
+            c(i)
+            lvUnSelect(lv, i)
+        }
+    }
+    return Seq(fun).toArray()
+}
+
 toExe(name) {
     return 'ahk_exe ' name '.exe'
 }

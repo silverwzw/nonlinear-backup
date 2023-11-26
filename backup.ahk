@@ -216,19 +216,32 @@ class BackupHelper {
 
         lv := listViewAll(['存档树', '时间'], rows, () => makeGlobalGui(appName))
         lv.OnEvent('DoubleClick', (gc, index) => index == size ? Run(this.target) : 0)
-        
+
         onEnter(lv) {
-            index := lv.GetNext()
-            if index < size {
-                FileCopy(this.target '\' this.saves[index] '\*', this.src, true)
-                this.changeHead(index)
-                exitGuiWith(this.entries[index][3] ' - 已恢复', 3)
+            selected := lvGetAllSelected(lv)
+            if selected.Length == 0 {
+                return '请选择节点'
+            }
+            else if selected.Length == 1 {
+                index := lv.GetNext()
+                if index < size {
+                    FileCopy(this.target '\' this.saves[index] '\*', this.src, true)
+                    this.changeHead(index)
+                    exitGuiWith(this.entries[index][3] ' - 已恢复', 3)
+                } else {
+                    return '虚拟根节点'
+                }
+            } else if selected.Length == 2 {
+                i := selected[1]
+                j := selected[2]
+                this.changeParent(i, parentMap[i] == j ? size : j)
+                this.updateSaves()
             } else {
-                return '虚拟根节点'
+                return '选择节点过多'
             }
         }
         cmdMap['onEnter'] := wrapCmd(lv, onEnter)
-        
+
         onShiftUp(lv) {
             index := lv.GetNext()
             if mGet(childrenMap, index, &cr) {
@@ -236,7 +249,7 @@ class BackupHelper {
             }
         }
         cmdMap['onShiftUp'] := wrapCmd(lv, onShiftUp)
-        
+
         onShiftDown(lv) {
             index := lv.GetNext()
             if index < size {
@@ -244,7 +257,7 @@ class BackupHelper {
             }
         }
         cmdMap['onShiftDown'] := wrapCmd(lv, onShiftDown)
-        
+
         onDel(lv) {
             index := lv.GetNext()
             if index == size {
@@ -291,7 +304,7 @@ class BackupHelper {
 }
 
 
-#HotIf isWinActive('backup', appName)
+#HotIf isWinActive('backup', appName) or isWinActive('AutoHotKey64', appName)
 Enter:: cmdMap['onEnter'].Call()
 +Up:: cmdMap['onShiftUp'].Call()
 +Down:: cmdMap['onShiftDown'].Call()
