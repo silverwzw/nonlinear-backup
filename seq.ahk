@@ -46,10 +46,10 @@ class Seq {
         return Seq(c => this.consume(t => c(mapper(t))))
     }
 
-    mapIndexed(mapper) {
+    mapIndexed(indexedMapper) {
         fun(c) {
             i := 1
-            this.consume(t => c(mapper(i++, t)))
+            this.consume(t => c(indexedMapper(i++, t)))
         }
         return Seq(fun)
     }
@@ -465,14 +465,14 @@ class ItrSeq extends Seq {
         }
     }
 
-    map(mapper) {
+    map(indexedMapper) {
         fun() {
             e := this.__Enum(1)
             res(&x) {
                 if not e.Call(&t) {
                     return false
                 }
-                x := mapper(t)
+                x := indexedMapper(t)
                 return true
             }
             return res
@@ -487,7 +487,7 @@ class ItrSeq extends Seq {
                 if not e.Call(&i, &t) {
                     return false
                 }
-                x := mapper(t)
+                x := mapper(i, t)
                 return true
             }
             return res

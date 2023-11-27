@@ -221,7 +221,7 @@ class BackupHelper {
         }
 
         onEnter(lv) {
-            selected := lvGetAllSelected(lv)
+            selected := lvGetAllSelected(lv).toArray()
             if selected.Length == 1 {
                 index := selected[1]
                 if index < size {
@@ -236,7 +236,7 @@ class BackupHelper {
         cmdMap['Enter'] := wrapCmd(lv, onEnter)
 
         onRButton(lv) {
-            selected := lvGetAllSelected(lv)
+            selected := lvGetAllSelected(lv).toArray()
             if selected.Length == 2 {
                 i := selected[1]
                 j := selected[2]
@@ -268,7 +268,7 @@ class BackupHelper {
 
         onDel(lv) {
             index := lv.GetNext()
-            if index == size {
+            if index == 0 or index == size {
                 return
             }
             parent := parentMap[index]
@@ -325,10 +325,11 @@ F1:: {
     g.Opt('ToolWindow')
     lines := [
         '游戏或工作界面',
+        'Win+F5  : 重新加载配置',
         'Win+F6  : 新建存档备份',
         'Win+F7  : 打开存档树',
-        'Win+F8  : 显示当前程序名',
-        'Win+F9  : 显示当前窗口标题',
+        'Win+F8  : 获取当前程序名',
+        'Win+F9  : 获取当前窗口标题',
         '',
         '本应用界面',
         'ESC     : 退出当前窗口',

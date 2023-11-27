@@ -129,17 +129,11 @@ lvSelect(lv, i, positive := true) {
 }
 
 lvGetAllSelected(lv) {
-    fun(c) {
-        i := 0
-        loop {
-            i := lv.GetNext(i)
-            if not i {
-                break
-            }
-            c(i)
-        }
+    fun() {
+        j := 0
+        return (&i) => i := j := lv.GetNext(j)
     }
-    return Seq(fun).toArray()
+    return EnumSeq(fun)
 }
 
 toExe(name) {
@@ -163,8 +157,8 @@ isWinActive(procName, titlePattern?) {
 
 
 #F5:: Reload
-#F8:: display(procName())
-#F9:: display(WinGetTitle('A'))
+#F8:: display(procName(), , , true)
+#F9:: display(WinGetTitle('A'), , , true)
 
 ; listViewAll(['a', 'b', 'c'], [['jifdajifjdaijfjjijijif', 'fsdajifdajofjaosuff', 'jijfidajifjaifjiaufodiuafiufasof']])
 ; listViewAll(['a', 'b', 'c'], [['jifdajifjdaijfj', 'fsda', 'jijfidajifjaifjia']])
