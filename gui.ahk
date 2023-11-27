@@ -34,7 +34,7 @@ makeGlobalGui(title?, font := 'consolas', fontOpt := 's10') {
     if IsSet(globalGui) {
         globalGui.Destroy()
     }
-    globalGui := IsSet(title) ? makeGui(title, exitGui) : makeGui(, exitGui)
+    globalGui := makeGui(title?, exitGui)
     globalGui.SetFont(fontOpt, font)
     return globalGui
 }

@@ -156,6 +156,7 @@ class Seq {
             stop()
         }
         this.consume(fun)
+        return IsSet(res)
     }
 
     firstMaybe() {
@@ -281,6 +282,10 @@ class Seq {
         a := this.toArray()
         s := Sort(this.mapIndexed((i, t) => mapper(t) interSep i).join(sep), opt)
         return seqSplit(s, sep).map(t => a[Integer(StrSplit(t, interSep)[2])])
+    }
+
+    reverse() {
+        return seqReverse(this.toArray())
     }
 
     toArray(mapper?) {
@@ -494,6 +499,10 @@ class ItrSeq extends Seq {
         }
         return EnumSeq(fun)
     }
+
+    toArray(mapper?) {
+        return IsSet(mapper) ? super.toArray(mapper) : this._a
+    }
 }
 
 class EnumSeq extends ItrSeq {
@@ -502,12 +511,12 @@ class EnumSeq extends ItrSeq {
     }
 
     __Enum(NumberOfVars) {
+        fun := this._enumFunc.Call()
         if NumberOfVars == 1 {
-            return this._enumFunc.Call()
+            return fun
         } else if NumberOfVars == 2 {
-            fun := this._enumFunc.Call()
             j := 1
-            return (&i, &t) => (b := fun.Call(&t), i := j++, b)
+            return (&i, &t) => (i := j++, fun(&t))
         } else {
             throw ValueError(NumberOfVars)
         }
