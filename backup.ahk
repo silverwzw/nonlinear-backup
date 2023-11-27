@@ -58,7 +58,7 @@ accumulator(dirMap, line) {
         quit('存档路径不存在：' a[2])
         stop()
     }
-    a1 := StrSplit(a[1], ':', ' ', 2)
+    a1 := StrSplit(a[1], ',', ' ', 2)
     dirMap[a1[1]] := [aGetOr(a1, 2, ''), a2[1], aGetOr(a2, 2, '*')]
 }
 
@@ -325,7 +325,7 @@ F1:: {
     g.Opt('ToolWindow')
     lines := [
         '游戏或工作界面',
-        'Win+F5  : 重新加载配置',
+        'Win+F5  : 重新加载',
         'Win+F6  : 新建存档备份',
         'Win+F7  : 打开存档树',
         'Win+F8  : 获取当前程序名',

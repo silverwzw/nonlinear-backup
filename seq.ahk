@@ -360,11 +360,11 @@ class Seq {
 }
 
 seqOf(a) {
-    return ItrSeq(a)
+    return a is Array ? ArraySeq(a) : a is ItrSeq ? a : ItrSeq(a)
 }
 
 seqAll(x*) {
-    return ItrSeq(x)
+    return ArraySeq(x)
 }
 
 seqReverse(a) {
@@ -372,11 +372,11 @@ seqReverse(a) {
 }
 
 seqPairs(m) {
-    fun(consumer) {
-        for t1, t2 in m
-            consumer(Pair(t1, t2))
+    fun() {
+        e := m.__Enum(2)
+        return (&p) => (e.Call(&k, &v) ? p := [k, v] : false)
     }
-    return Seq(fun)
+    return EnumSeq(fun)
 }
 
 seqGenBy(seed, unaryMapper) {
@@ -499,9 +499,11 @@ class ItrSeq extends Seq {
         }
         return EnumSeq(fun)
     }
+}
 
+class ArraySeq extends ItrSeq {
     toArray(mapper?) {
-        return IsSet(mapper) ? super.toArray(mapper) : this._a
+        return IsSet(mapper) ? aMap(this._a, mapper) : this._a
     }
 }
 
@@ -527,23 +529,16 @@ range(start, end, step := 1) {
     if step > 0 {
         positive() {
             j := start
-            return (&i) => (i := j, j := i + step, i <= end)
+            return (&i) => (i := j, j += step, i <= end)
         }
         return EnumSeq(positive)
     } else if step < 0 {
         negative() {
             j := start
-            return (&i) => (i := j, j := i + step, i >= end)
+            return (&i) => (i := j, j += step, i >= end)
         }
         return EnumSeq(negative)
     } else {
         throw ValueError('zero step')
-    }
-}
-
-class Pair {
-    __New(first, second) {
-        this.first := first
-        this.second := second
     }
 }
