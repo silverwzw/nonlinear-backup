@@ -465,14 +465,14 @@ class ItrSeq extends Seq {
         }
     }
 
-    map(indexedMapper) {
+    map(mapper) {
         fun() {
             e := this.__Enum(1)
             res(&x) {
                 if not e.Call(&t) {
                     return false
                 }
-                x := indexedMapper(t)
+                x := mapper(t)
                 return true
             }
             return res
@@ -480,14 +480,14 @@ class ItrSeq extends Seq {
         return EnumSeq(fun)
     }
 
-    mapIndexed(mapper) {
+    mapIndexed(indexedMapper) {
         fun() {
             e := this.__Enum(2)
             res(&x) {
                 if not e.Call(&i, &t) {
                     return false
                 }
-                x := mapper(i, t)
+                x := indexedMapper(i, t)
                 return true
             }
             return res
