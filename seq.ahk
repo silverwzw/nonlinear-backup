@@ -360,7 +360,7 @@ class Seq {
 }
 
 seqOf(a) {
-    return a is Array ? ArraySeq(a) : a is ItrSeq ? a : ItrSeq(a)
+    return a is Array ? ArraySeq(a) : ItrSeq(a)
 }
 
 seqAll(x*) {
@@ -443,6 +443,7 @@ seqRepeat(n, t) {
     return EnumSeq(fun)
 }
 
+
 class ItrSeq extends Seq {
     __New(a) {
         this._a := a
@@ -501,11 +502,13 @@ class ItrSeq extends Seq {
     }
 }
 
+
 class ArraySeq extends ItrSeq {
     toArray(mapper?) {
         return IsSet(mapper) ? aMap(this._a, mapper) : this._a
     }
 }
+
 
 class EnumSeq extends ItrSeq {
     __New(enumFunc) {
@@ -540,5 +543,44 @@ range(start, end, step := 1) {
         return EnumSeq(negative)
     } else {
         throw ValueError('zero step')
+    }
+}
+
+
+class Maybe {
+    __New(refCall) {
+        this._func := refCall
+    }
+
+    map(fun) {
+        return Maybe((&t) => (
+            this._func.Call(&o),
+            IsSet(o) ? t := fun(o) : 0
+        ))
+    }
+
+    mapOr(fun, o) {
+        this._func.Call(&t)
+        return IsSet(t) ? fun(t) : o
+    }
+
+    mapOrGet(fun, supplier) {
+        this._func.Call(&t)
+        return IsSet(t) ? fun(t) : supplier()
+    }
+
+    orElse(o) {
+        this._func.Call(&t)
+        return IsSet(t) ? t : o
+    }
+
+    orElseGet(supplier) {
+        this._func.Call(&t)
+        return IsSet(t) ? t : supplier()
+    }
+
+    isPresent(&t) {
+        this._func.Call(&t)
+        return IsSet(t)
     }
 }
