@@ -186,9 +186,13 @@ class Seq {
         return IsSet(test) ? this.sum(t => test(t) ? 1 : 0) : this.sum(t => 1)
     }
 
-    sum(numMapper) {
+    sum(numMapper?) {
         res := 0
-        this.consume(t => res += numMapper(t))
+        if IsSet(numMapper) {
+            this.consume(t => res += numMapper(t))
+        } else {
+            this.consume(t => res += t)
+        }
         return res
     }
 

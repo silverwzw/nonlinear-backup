@@ -59,7 +59,7 @@ accumulator(dirMap, line) {
         stop()
     }
     a1 := StrSplit(a[1], ',', ' ', 2)
-    dirMap[a1[1]] := [aGetOr(a1, 2, ''), a2[1], aGetOr(a2, 2, '*')]
+    dirMap[a1[1]] := [getOr(a1, 2, ''), a2[1], getOr(a2, 2, '*')]
 }
 
 procDirMap := seqReadlines(backupIni).reduce(Map(), accumulator)
@@ -161,11 +161,11 @@ class BackupHelper {
             display(msg, 3, true)
             return
         }
-        nodeIndexMap := Map()
-        forEachIndexed(this.entries, (i, e) => nodeIndexMap[e[1]] := i)
-        parentMap := range(1, size - 1).toMapWith(i => nodeIndexMap.Get(this.entries[i][2], size))
-        childrenMap := range(1, size - 1).groupBy(i => parentMap[i], i => i)
-        tree := aRepeatBy(size, () => aRepeat(size, ' '))
+        rg := range(1, size - 1)
+        nodeIndexMap := rg.toMapBy(i => this.entries[i][1])
+        parentMap := rg.toMapWith(i => nodeIndexMap.Get(this.entries[i][2], size))
+        childrenMap := rg.groupBy(i => parentMap[i], i => i)
+        tree := repeatBy(size, () => repeat(size, ' '))
 
         foundHead := false
         fillNode(i, j) {
@@ -202,7 +202,7 @@ class BackupHelper {
         end := fillNode(size, 1)
 
         beautifyRow(row) {
-            a := aRepeat((end << 1) - 1, ' ')
+            a := repeat((end << 1) - 1, ' ')
             for i in range(1, end) {
                 s := row[i]
                 a[(i << 1) - 1] := s

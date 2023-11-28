@@ -44,7 +44,7 @@ noneMatch(a, test) {
     return not find(a, &res, test)
 }
 
-aRepeat(n, t) {
+repeat(n, t) {
     a := []
     loop n {
         a.Push(t)
@@ -52,7 +52,7 @@ aRepeat(n, t) {
     return a
 }
 
-aRepeatBy(n, supplier) {
+repeatBy(n, supplier) {
     a := []
     loop n {
         a.Push(supplier())
@@ -60,11 +60,11 @@ aRepeatBy(n, supplier) {
     return a
 }
 
-aReverse(a) {
+reverse(a) {
     return aMapIndexed(a, (i, t) => a[-i])
 }
 
-aGetOr(a, index, default) {
+getOr(a, index, default) {
     return index <= a.Length ? a[index] : default
 }
 
@@ -114,7 +114,7 @@ aSortBy(a, mapper, opt := '', interSep := '``') {
     return seqSplit(s, sep).map(t => a[Integer(StrSplit(t, interSep)[2])]).toArray()
 }
 
-aSum(a, mapper?) {
+sum(a, mapper?) {
     sum := 0
     if IsSet(mapper) {
         for t in a {

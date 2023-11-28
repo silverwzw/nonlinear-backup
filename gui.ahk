@@ -93,7 +93,7 @@ popupYesNo(title, text) {
 edgeMap := seqAll('│', '└', '┴', '─', '╪', '┼').toMapWith(Ord)
 
 estimateLen(str) {
-    return aSum(StrSplit(str), c => Ord(c) < 128 or edgeMap.Has(c) ? 7.5 : 15)
+    return seqSplit(str, '').sum(c => Ord(c) < 128 or edgeMap.Has(c) ? 7.5 : 15)
 }
 
 listViewAll(titles, rows, guiMaker := makeGlobalGui, maxHeight := 30) {
@@ -110,7 +110,7 @@ listViewAll(titles, rows, guiMaker := makeGlobalGui, maxHeight := 30) {
         aMaxBy(rows, &_, r => estimateLen(r[i]), &maxLen)
         return Max(maxLen, estimateLen(titles[i]))
     }
-    width := 11 * colNum + aSum(range(1, colNum), estColWidth)
+    width := 11 * colNum + range(1, colNum).sum(estColWidth)
     height := Min(rows.Length, maxHeight)
     if height < rows.Length {
         width += 11
