@@ -1,10 +1,14 @@
-_arrayPusher := (des, s) => des.Push(s)
-_strConcat := (acc, s) => acc s
-_void := {}
-
 class StopError extends ValueError {
 }
 _stopError := StopError()
+
+_arrayPusher(a, t) {
+    return a.Push(t)
+}
+
+_strConcat(acc, s) {
+    return acc s
+}
 
 stop() {
     throw _stopError
@@ -59,7 +63,7 @@ class Seq {
     }
 
     filter(test) {
-        return Seq(c => this.consume(t => test(t) ? c(t) : _void))
+        return Seq(c => this.consume(t => test(t) ? c(t) : 0))
     }
 
     take(n) {
@@ -67,7 +71,7 @@ class Seq {
     }
 
     drop(n) {
-        return this.partial(t => _void, n)
+        return this.partial(t => 0, n)
     }
 
     partial(consumer, n := 1) {
@@ -288,8 +292,8 @@ class Seq {
         return seqReverse(this.toArray())
     }
 
-    toArray(mapper?) {
-        return this.reduce([], IsSet(mapper) ? (des, s) => des.Push(mapper(s)) : _arrayPusher)
+    toArray() {
+        return this.reduce([], _arrayPusher)
     }
 
     partition(test, &part1, &part2) {
@@ -329,32 +333,20 @@ class Seq {
         return res
     }
 
-    join(sep?, mapper?) {
-        if IsSet(sep) and sep != '' {
+    join(sep?) {
+        if IsSet(sep) and sep {
             rest := false
-            if IsSet(mapper) {
-                ifMapper(acc, t) {
-                    if rest
-                        return acc sep mapper(t)
-                    else {
-                        rest := true
-                        return mapper(t)
-                    }
+            fun(acc, t) {
+                if rest
+                    return acc sep t
+                else {
+                    rest := true
+                    return t
                 }
-                return this.fold('', ifMapper)
-            } else {
-                nonMapper(acc, t) {
-                    if rest
-                        return acc sep t
-                    else {
-                        rest := true
-                        return t
-                    }
-                }
-                return this.fold('', nonMapper)
             }
+            return this.fold('', fun)
         } else {
-            return this.fold('', IsSet(mapper) ? (acc, t) => acc mapper(t) : _strConcat)
+            return this.fold('', _strConcat)
         }
     }
 }
@@ -504,8 +496,8 @@ class ItrSeq extends Seq {
 
 
 class ArraySeq extends ItrSeq {
-    toArray(mapper?) {
-        return IsSet(mapper) ? aMap(this._a, mapper) : this._a
+    toArray() {
+        return this._a
     }
 }
 

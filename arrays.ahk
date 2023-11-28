@@ -94,12 +94,12 @@ filter(a, test) {
     return b
 }
 
-join(a, sep := '', mapper?) {
+join(a, sep?, mapper?) {
     sq := seqOf(a)
     if IsSet(mapper) {
         sq := sq.map(mapper)
     }
-    return sq.join(sep)
+    return sq.join(sep?)
 }
 
 aSort(a, opt := '') {
