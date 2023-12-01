@@ -151,7 +151,7 @@ class Seq {
     }
 
     none(test) {
-        return not this.find(&res, test)
+        return not this.find(&_, test)
     }
 
     first(&res) {
@@ -553,7 +553,7 @@ class Maybe {
         return IsSet(t) ? t : supplier()
     }
 
-    isPresent(&t) {
+    get(&t) {
         this._func.Call(&t)
         return IsSet(t)
     }
