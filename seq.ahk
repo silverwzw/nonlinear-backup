@@ -142,12 +142,12 @@ class Seq {
         return Seq(fun)
     }
 
-    any(test, ifFound := true) {
-        return this.find(&res, test)
+    any(test) {
+        return this.find(&_, test)
     }
 
     all(test) {
-        return not this.find(&res, negate(test))
+        return not this.find(&_, negate(test))
     }
 
     none(test) {
@@ -155,11 +155,7 @@ class Seq {
     }
 
     first(&res) {
-        fun(t) {
-            res := t
-            stop()
-        }
-        this.consume(fun)
+        this.consume(t => (res := t, stop()))
         return IsSet(res)
     }
 
@@ -168,13 +164,7 @@ class Seq {
     }
 
     find(&res, test) {
-        fun(t) {
-            if test(t) {
-                res := t
-                stop()
-            }
-        }
-        this.consume(fun)
+        this.consume(t => test(t) ? (res := t, stop()) : 0)
         return IsSet(res)
     }
 
@@ -340,15 +330,7 @@ class Seq {
     join(sep?) {
         if IsSet(sep) and sep {
             rest := false
-            fun(acc, t) {
-                if rest
-                    return acc sep t
-                else {
-                    rest := true
-                    return t
-                }
-            }
-            return this.fold('', fun)
+            return this.fold('', (acc, t) => rest ? acc sep t : (rest := true, t))
         } else {
             return this.fold('', _strConcat)
         }
@@ -376,34 +358,24 @@ seqPairs(m) {
 }
 
 seqGenBy(seed, unaryMapper) {
-    fun(c) {
-        t := seed
-        c(t)
-        while true {
-            c(t := unaryMapper(t))
-        }
+    fun() {
+        x := seed
+        return (&t) => (x := unaryMapper(t := x), true)
     }
-    return Seq(fun)
+    return EnumSeq(fun)
 }
 
 seqGenByTwo(seed1, seed2, binaryMapper) {
-    fun(c) {
-        t1 := seed1
-        t2 := seed2
-        c(t1)
-        c(t2)
-        while true {
-            next := binaryMapper(t1, t2)
-            c(next)
-            t1 := t2
-            t2 := next
-        }
+    fun() {
+        x1 := seed1
+        x2 := seed2
+        return (&t) => (x2 := binaryMapper(t := x1, x1 := x2), true)
     }
-    return Seq(fun)
+    return EnumSeq(fun)
 }
 
 seqReadlines(fileName, encoding?) {
-    read() {
+    fun() {
         fileObj := FileOpen(fileName, 'r', encoding?)
         call(&line) {
             if not fileObj.AtEOF {
@@ -415,7 +387,7 @@ seqReadlines(fileName, encoding?) {
         }
         return call
     }
-    return EnumSeq(read)
+    return EnumSeq(fun)
 }
 
 seqSplit(s, sep, limit := -1) {
@@ -439,6 +411,12 @@ seqRepeat(n, t) {
     return EnumSeq(fun)
 }
 
+seqRepeatBy(n, supplier) {
+    fun() {
+        i := 0
+        return (&x) => (x := supplier(), i++ < n)
+    }
+}
 
 class ItrSeq extends Seq {
     __New(a) {

@@ -48,18 +48,17 @@ accumulator(dirMap, line) {
     if startsWith(line, ';') {
         return
     }
-    a := StrSplit(line, '=', ' ', 2)
-    if a.Length != 2 {
+    if not parseTwo(line, '=', &procAndTitle, &pathAndPattern) {
         quit('语法错误：' line)
         stop()
     }
-    a2 := StrSplit(a[2], ',', ' ', 2)
-    if not FileExist(a2[1]) {
-        quit('存档路径不存在：' a[2])
+    parseTwo(pathAndPattern, ',', &path, &pattern, true)
+    if not FileExist(path) {
+        quit('存档路径不存在：' path)
         stop()
     }
-    a1 := StrSplit(a[1], ',', ' ', 2)
-    dirMap[a1[1]] := [getOr(a1, 2, ''), a2[1], getOr(a2, 2, '*')]
+    parseTwo(procAndTitle, ',', &proc, &title)
+    dirMap[proc] := [title, path, pattern]
 }
 
 procDirMap := seqReadlines(backupIni).reduce(Map(), accumulator)

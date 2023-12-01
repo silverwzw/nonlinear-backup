@@ -62,6 +62,35 @@ matchGetAll(str, regex) {
         return ''
 }
 
+parseTwo(s, sep, &first, &second, atLastSep := false) {
+    if not atLastSep {
+        a := StrSplit(s, sep, ' `t', 2)
+        first := a[1]
+        if a.Length > 1 {
+            second := a[2]
+            return true
+        } else {
+            second := ''
+            return false
+        }
+    } else {
+        a := StrSplit(s, sep, ' `t')
+        if a.Length == 1 {
+            first := a[1]
+            second := ''
+            return false
+        } else if a.Length == 2 {
+            first := a[1]
+            second := a[2]
+            return true
+        } else {
+            first := range(1, a.Length - 1).map(i => a[i]).join(sep)
+            second := a[a.Length]
+            return true
+        }
+    }
+}
+
 copySelection() {
     A_Clipboard := ''
     SendInput('^c')
