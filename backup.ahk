@@ -230,7 +230,7 @@ class BackupHelper {
                 if index < size {
                     FileCopy(this.target '\' this.saves[index] '\*', this.src, true)
                     this.changeHead(index)
-                    exitGuiWith(this.entries[index][3] ' - 已恢复', 3)
+                    exitGuiWith(this.entries[index][3] ' - 已载入', 3)
                 } else {
                     return '虚拟根节点'
                 }
@@ -352,7 +352,7 @@ F1:: {
         '↓       : 向下（较旧存档）',
         'Ctrl+↑  : 向上跳转最新子节点',
         'Ctrl+↓  : 向下跳转父节点',
-        'Enter   : 恢复存档',
+        'Enter   : 载入存档',
         'Delete  : 删除存档',
         'RButton : 重设父节点',
     ]

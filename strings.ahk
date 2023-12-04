@@ -63,6 +63,10 @@ matchGetAll(str, regex) {
 }
 
 parseTwo(s, sep, &first, &second, atLastSep := false) {
+    if not s {
+        first := ''
+        return false
+    }
     if not atLastSep {
         a := StrSplit(s, sep, ' `t', 2)
         first := a[1]

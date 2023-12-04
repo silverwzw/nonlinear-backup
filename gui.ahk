@@ -3,6 +3,9 @@
 #Include strings.ahk
 
 
+ListLines false
+KeyHistory 0
+
 globalGui := unset
 globalDisplaySeconds := 0
 displaying := unset
