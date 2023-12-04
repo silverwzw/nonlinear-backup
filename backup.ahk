@@ -52,12 +52,16 @@ accumulator(dirMap, line) {
         quit('语法错误：' line)
         stop()
     }
-    parseTwo(pathAndPattern, ',', &path, &pattern, true)
+    if not parseTwo(pathAndPattern, ',', &path, &pattern, true) {
+        pattern := '*'
+    }
     if not FileExist(path) {
         quit('存档路径不存在：' path)
         stop()
     }
-    parseTwo(procAndTitle, ',', &proc, &title)
+    if not parseTwo(procAndTitle, ',', &proc, &title) {
+        title := ''
+    }
     dirMap[proc] := [title, path, pattern]
 }
 
@@ -83,6 +87,10 @@ class BackupHelper {
         this.src := src
         this.filePattern := filePattern
         this.target := backupDir '\' proc
+        this.update()
+    }
+
+    update() {
         this.saves := scanFilesLatest(this.target, , 'D').map(fileName).toArray()
         this.entries := aMap(this.saves, f => StrSplit(f, '#'))
         this.entries.Push(['', '', '[双击打开路径]'])
@@ -121,11 +129,7 @@ class BackupHelper {
             }
             folder := timestamp '#' this.head '#' saveName
             filesBackup(this.target, folder, srcFiles.map(filePath))
-            if this.head {
-                FileMove(this.target '\' this.head, this.target '\' timestamp)
-            } else {
-                FileAppend('', this.target '\' timestamp)
-            }
+            this.setHead(timestamp)
             exitGuiWith(saveName ' - 已保存', 3)
         }
         cmdMap['Enter'] := wrapCmd(gc, onEnter)
@@ -156,7 +160,8 @@ class BackupHelper {
                 }
                 msg := '已删除未归档备份'
             }
-            this.updateSaves()
+            this.update()
+            this.showSaves()
             display(msg, 3, true)
             return
         }
@@ -174,10 +179,9 @@ class BackupHelper {
             } else {
                 tree[i][j] := '┼'
             }
-            if not childrenMap.Has(i) {
+            if not mGet(childrenMap, i, &children) {
                 return j
             }
-            children := childrenMap[i]
             first := children[1]
             for k in range(first + 1, i - 1) {
                 tree[k][j] := '│'
@@ -243,8 +247,8 @@ class BackupHelper {
                 if p == j and p == size {
                     return
                 }
-                this.changeParent(i, p == j ? size : j)
-                this.updateSaves(i, j)
+                this.changeParent(i, p == j ? size : j, true)
+                this.showSaves(i, j)
             }
         }
         cmdMap['RButton'] := wrapCmd(lv, onRButton)
@@ -286,27 +290,36 @@ class BackupHelper {
             }
             DirDelete(this.target '\' this.saves[index], true)
             exitGuiWith(curr[3] ' - 已删除', 4)
-            this.updateSaves(index)
+            this.update()
+            this.showSaves(index)
         }
         cmdMap['Del'] := wrapCmd(lv, onDel)
-    }
-
-    updateSaves(selections*) {
-        BackupHelper(this.proc, this.src, this.filePattern).showSaves(selections*)
     }
 
     renameSave(from, id, parent, name) {
         DirMove(this.target '\' from, this.target '\' id '#' parent '#' name, 'R')
     }
 
-    changeHead(index) {
-        FileMove(this.target '\' this.head, this.target '\' this.entries[index][1])
+    setHead(timestamp) {
+        if this.head {
+            FileMove(this.target '\' this.head, this.target '\' timestamp)
+        } else {
+            FileAppend('', this.target '\' timestamp)
+        }
     }
 
-    changeParent(index, parent) {
+    changeHead(index) {
+        this.setHead(this.entries[index][1])
+    }
+
+    changeParent(index, parent, inplace := false) {
         src := this.entries[index]
         des := this.entries[parent]
         this.renameSave(this.saves[index], src[1], des[1], src[3])
+        if inplace {
+            src[2] := des[1]
+            this.saves[index] := join(src, '#')
+        }
     }
 }
 

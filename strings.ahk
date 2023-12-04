@@ -70,14 +70,12 @@ parseTwo(s, sep, &first, &second, atLastSep := false) {
             second := a[2]
             return true
         } else {
-            second := ''
             return false
         }
     } else {
         a := StrSplit(s, sep, ' `t')
         if a.Length == 1 {
             first := a[1]
-            second := ''
             return false
         } else if a.Length == 2 {
             first := a[1]
