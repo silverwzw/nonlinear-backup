@@ -15,7 +15,7 @@ stop() {
 }
 
 negate(test) {
-    return x => !test(x)
+    return x => not test(x)
 }
 
 class Seq {
@@ -24,9 +24,9 @@ class Seq {
     }
 
     consume(consumer) {
-        try
+        try {
             this.consumerConsumer.Call(consumer)
-        catch StopError as e {
+        } catch StopError {
         }
     }
 
@@ -294,6 +294,29 @@ class Seq {
         part1 := []
         part2 := []
         this.consume(t => (test(t) ? part1 : part2).Push(t))
+    }
+
+    mapSub(headTest, headRestMapper) {
+        head := unset
+        rest := unset
+        f(c) {
+            g(t) {
+                if headTest(t) {
+                    if IsSet(head) {
+                        c(headRestMapper(head, rest))
+                    }
+                    head := t
+                    rest := []
+                } else if IsSet(head) {
+                    rest.Push(t)
+                }
+            }
+            this.consume(g)
+            if IsSet(head) {
+                c(headRestMapper(head, rest))
+            }
+        }
+        return Seq(f)
     }
 
     cache() {

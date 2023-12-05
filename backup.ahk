@@ -2,7 +2,6 @@
 #Include gui.ahk
 
 
-appName := '非线性备份'
 cmdMap := seqAll('Enter', 'CtrlUp', 'CtrlDown', 'Del', 'RButton').toMapWith(name => nothing)
 
 checkTimeFormat(time) {
@@ -44,35 +43,36 @@ if not FileExist(backupIni) {
     return
 }
 
-accumulator(dirMap, line) {
-    if startsWith(line, ';') {
-        return
-    }
-    if not parseTwo(line, '=', &procAndTitle, &pathAndPattern) {
-        quit('语法错误：' line)
+parseConfig(head, rest) {
+    proc := SubStr(head, 2, StrLen(head) - 2)
+    if not rest {
+        quit('未找到配置：' proc)
         stop()
     }
-    if not parseTwo(pathAndPattern, ',', &path, &pattern, true) {
-        pattern := '*'
-    }
-    if not FileExist(path) {
-        quit('存档路径不存在：' path)
+    configMap := seqOf(rest)
+        .map(ln => StrSplit(ln, '=', ' `t', 2))
+        .filter(a => a.Length == 2)
+        .toMap(a => a[1], a => a[2])
+    if not mGet(configMap, 'dir', &dir) {
+        quit('缺失存档路径 dir: ' proc)
+        stop()
+    } else if not FileExist(dir) {
+        quit('存档路径不存在：' dir)
         stop()
     }
-    if not parseTwo(procAndTitle, ',', &proc, &title) {
-        title := ''
-    }
-    dirMap[proc] := [title, path, pattern]
+    return [proc, configMap]
 }
 
-procDirMap := seqReadlines(backupIni).reduce(Map(), accumulator)
-if procDirMap.Count == 0 {
+procMap := seqReadlines(backupIni)
+    .filter(ln => ln and not startsWith(ln, ';'))
+    .mapSub(ln => surroundedWith(ln, '[', ']'), parseConfig)
+    .toMap(a => a[1], a => a[2])
+
+
+if procMap.Count == 0 {
     quit('无存档配置')
     return
 }
-
-backupDir := A_WorkingDir
-
 
 exitGuiWith(msg, sec) {
     exitGui(, g => display(msg, sec, true))
@@ -81,13 +81,35 @@ exitGuiWith(msg, sec) {
     }
 }
 
-class BackupHelper {
-    __New(proc, src, filePattern) {
+class NonlinearBackup {
+    static appName := '非线性备份'
+    static autoFunc := 'autoFunc'
+    static autoText := 'autoText'
+    static backupDir := A_WorkingDir
+
+    __New(proc, config) {
         this.proc := proc
-        this.src := src
-        this.filePattern := filePattern
-        this.target := backupDir '\' proc
+        this.target := NonlinearBackup.backupDir '\' proc
+        this.src := config['dir']
+        this.title := config.Get('title', '')
+        this.pattern := config.Get('pattern', '*')
+        this.hotkey := config.Get('hotkey', '')
+        this.keywait := nGetMaybe(config, 'keywait').orElse(0)
         this.update()
+    }
+
+    static clearAuto(config) {
+        config.Delete(NonlinearBackup.autoFunc)
+        config.Delete(NonlinearBackup.autoText)
+    }
+
+    getAppTitle() {
+        if mGet(procMap, this.proc, &config) {
+            if mGet(config, NonlinearBackup.autoText, &text) {
+                return NonlinearBackup.appName ' (' text ')'
+            }
+        }
+        return NonlinearBackup.appName
     }
 
     update() {
@@ -97,40 +119,114 @@ class BackupHelper {
         this.head := scanFiles(this.target).findMaybe(f => not fileExt(f)).mapOr(fileName, '')
     }
 
+    doSave(saveName, auto, &msg) {
+        srcFiles := scanFiles(this.src, this.pattern).cache()
+        if not srcFiles.map(fileModifiedTime).max(&latestTime) {
+            msg := '无可备份文件'
+            return false
+        }
+        timestamp := timeEncode(latestTime)
+        first := this.entries[1]
+        if first[1] == timestamp {
+            if not auto and popupYesNo('重命名存档', '已有最新存档: ' first[3] '`n是否重命名') {
+                this.renameSave(this.saves[1], first[1], first[2], saveName)
+                exitGuiWith(saveName ' - 已重命名', 3)
+            }
+            ; msg := '已是最新'
+            return false
+        }
+        if not auto {
+            if anyMatch(this.entries, e => e[3] == saveName) {
+                msg := '存档已存在'
+                return false
+            }
+        }
+        if this.hotkey {
+            if isWinActive(this.proc, this.title) {
+                SendInput(this.hotkey)
+                Sleep((this.keywait or 1) * 1000)
+            }
+        }
+        folder := timestamp '#' this.head '#' saveName
+        filesBackup(this.target, folder, srcFiles.map(filePath))
+        this.setHead(timestamp)
+        return true
+    }
+
+    checkAuto(saveName, &msg) {
+        if startsWith(saveName, 'auto=') {
+            sub := SubStr(saveName, 6)
+            if isFullMatch(sub, '[+-]?[0-9]+[hHmMsS]') {
+                config := procMap[this.proc]
+                len := StrLen(sub)
+                num := Integer(SubStr(sub, 1, len - 1))
+                if num == 0 {
+                    if mGet(config, NonlinearBackup.autoFunc, &timer) {
+                        SetTimer(timer, 0)
+                        NonlinearBackup.clearAuto(config)
+                        exitGuiWith('关闭自动备份', 3)
+                        return true
+                    } else {
+                        msg := '自动备份未开启'
+                        return true
+                    }
+                }
+                unit := SubStr(sub, len)
+                millis := num * 1000
+                if unit = 'm' {
+                    millis *= 60
+                } else if unit = 'h' {
+                    millis *= 3600
+                }
+                config := procMap[this.proc]
+                if mGet(config, NonlinearBackup.autoFunc, &old) {
+                    SetTimer(old, 0)
+                }
+                f() {
+                    if this.doSave(String(A_Now), true, &_) {
+                        display(this.proc ' - 已自动备份')
+                    }
+                    this.update()
+                    if num < 0 {
+                        NonlinearBackup.clearAuto(config)
+                    }
+                }
+                config[NonlinearBackup.autoFunc] := f
+                config[NonlinearBackup.autoText] := sub
+                SetTimer(f, millis)
+                exitGuiWith((num > 0 ? '开启自动备份：' : '预约备份：') sub, 3)
+                return true
+            } else {
+                msg := '自动备份语法错误'
+                return true
+            }
+        }
+        return false
+    }
+
     saveFiles() {
-        g := makeGlobalGui(appName, '微软雅黑')
+        g := makeGlobalGui(this.getAppTitle(), '微软雅黑')
         gc := g.AddEdit('r1 w300', '新建备份')
         showGui()
 
         onEnter(ed) {
             saveName := ed.Value
+            if this.checkAuto(saveName, &autoMsg) {
+                return IsSet(autoMsg) ? autoMsg : ''
+            }
             if isFullMatch(saveName, '\s*') {
                 return '不允许空文件夹'
             }
             if hasMatch(saveName, '[\\/:*?"<>|]') {
                 return '不能包含非法字符`n\/:*?"<>|'
             }
-            srcFiles := scanFiles(this.src, this.filePattern).cache()
-            if not srcFiles.map(fileModifiedTime).max(&latestTime) {
-                return '无可备份文件'
-            }
-            timestamp := timeEncode(latestTime)
-            for i, e in this.entries {
-                if e[1] == timestamp {
-                    if popupYesNo('重命名存档', '已有最新存档: ' e[3] '`n是否重命名') {
-                        this.renameSave(this.saves[i], e[1], e[2], saveName)
-                        exitGuiWith(saveName ' - 已重命名', 3)
-                    }
-                    return
+            if not this.doSave(saveName, false, &saveMsg) {
+                if IsSet(saveMsg) and saveMsg {
+                    return saveMsg
                 }
+            } else {
+                exitGuiWith(saveName ' - 已保存', 3)
             }
-            if anyMatch(this.entries, e => e[3] == saveName) {
-                return '存档已存在'
-            }
-            folder := timestamp '#' this.head '#' saveName
-            filesBackup(this.target, folder, srcFiles.map(filePath))
-            this.setHead(timestamp)
-            exitGuiWith(saveName ' - 已保存', 3)
         }
         cmdMap['Enter'] := wrapCmd(gc, onEnter)
     }
@@ -217,7 +313,7 @@ class BackupHelper {
         }
         rows := aMapIndexed(this.entries, (i, e) => [beautifyRow(tree[i]) ' ' e[3], readableTime(timeDecode(e[1]))])
 
-        lv := listViewAll(['存档树', '时间'], rows, () => makeGlobalGui(appName))
+        lv := listViewAll(['存档树', '时间'], rows, () => makeGlobalGui(this.getAppTitle()))
         lv.OnEvent('DoubleClick', (gc, index) => index == size ? Run(this.target) : 0)
         for i in selections {
             lvSelect(lv, i)
@@ -324,8 +420,8 @@ class BackupHelper {
 }
 
 
-; #HotIf isWinActive('AutoHotKey64', appName)
-#HotIf isWinActive('backup', appName)
+#HotIf isWinActive('AutoHotKey64', NonlinearBackup.appName '*')
+; #HotIf isWinActive('backup', BackupHelper.appName '*')
 Enter:: cmdMap['Enter'].Call()
 ^Up:: cmdMap['CtrlUp'].Call()
 ^Down:: cmdMap['CtrlDown'].Call()
@@ -363,10 +459,11 @@ F1:: {
 
 runBackupHelper(action) {
     proc := procName()
-    if mGet(procDirMap, proc, &titlePathFiles) {
-        title := titlePathFiles[1]
-        if not title or isWinTitleMatch(title) {
-            action(BackupHelper(proc, titlePathFiles[2], titlePathFiles[3]))
+    if mGet(procMap, proc, &config) {
+        if mGet(config, 'title', &title) {
+            if not title or isWinTitleMatch(title) {
+                action(NonlinearBackup(proc, config))
+            }
         }
     }
 }

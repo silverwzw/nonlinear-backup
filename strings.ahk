@@ -12,6 +12,15 @@ endsWith(str, sub) {
     return tot >= len and SubStr(str, tot - len + 1) == sub
 }
 
+surroundedWith(str, left, right) {
+    totLen := StrLen(str)
+    leftLen := StrLen(left)
+    rightLen := StrLen(right)
+    return totLen >= leftLen + rightLen
+        and SubStr(str, 1, leftLen) == left
+        and SubStr(str, totLen - rightLen + 1) == right
+}
+
 hasMatch(str, regex) {
     try {
         return RegExMatch(str, regex)
@@ -118,6 +127,28 @@ mFormat(m, valueMapper?) {
         a.Push(k ': ' (IsSet(valueMapper) ? valueMapper(v) : v))
     }
     return '{' join(a, ', ') '}'
+}
+
+nGet(m, key, &num) {
+    if mGet(m, key, &value) {
+        try {
+            num := Number(value)
+        } catch TypeError {
+        }
+    }
+    return IsSet(num)
+}
+
+nGetMaybe(m, key) {
+    return Maybe((&num) => nGet(m, key, &num))
+}
+
+nParse(str, &num) {
+    try {
+        num := Number(str)
+    } catch TypeError {
+    }
+    return IsSet(num)
 }
 
 

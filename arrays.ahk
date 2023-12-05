@@ -191,3 +191,7 @@ mGet(m, key, &value) {
     }
     return false
 }
+
+mGetMaybe(m, key) {
+    return Maybe((&t) => mGet(m, key, &t))
+}
