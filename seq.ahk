@@ -120,10 +120,10 @@ class Seq {
         return Seq(c => this.consume(t => toSeqMapper(t).consume(c)))
     }
 
-    runningFold(init, mapper) {
+    runningFold(init, accumulator) {
         fun(c) {
-            cur := init
-            this.consume(t => c(cur := mapper(t, cur)))
+            acc := init
+            this.consume(t => c(acc := accumulator(acc, t)))
         }
         return Seq(fun)
     }
@@ -159,17 +159,9 @@ class Seq {
         return IsSet(res)
     }
 
-    firstMaybe() {
-        return Maybe(this.first)
-    }
-
     find(&res, test) {
         this.consume(t => test(t) ? (res := t, stop()) : 0)
         return IsSet(res)
-    }
-
-    findMaybe(test) {
-        return Maybe((&t) => this.find(&t, test))
     }
 
     count(test?) {
@@ -226,9 +218,9 @@ class Seq {
         return IsSet(res)
     }
 
-    maxBy(&res, numMapper, &val?) {
+    maxBy(&res, valMapper, &val?) {
         fun(t) {
-            v := numMapper(t)
+            v := valMapper(t)
             if not IsSet(res) or val < v {
                 res := t
                 val := v
@@ -257,9 +249,9 @@ class Seq {
         return IsSet(res)
     }
 
-    minBy(&res, numMapper, &val?) {
+    minBy(&res, valMapper, &val?) {
         fun(t) {
-            v := numMapper(t)
+            v := valMapper(t)
             if not IsSet(res) or val > v {
                 res := t
                 val := v
@@ -335,6 +327,16 @@ class Seq {
         return this.reduce(Map(), (m, x) => m[x] := valueMapper(x))
     }
 
+    toIndexMap() {
+        m := Map()
+        this.consumeIndexed((i, t) => m[t] := i)
+        return m
+    }
+
+    toSet() {
+        return this.reduce(Map(), (m, x) => m[x] := '')
+    }
+
     groupBy(toKey, valueMapper?) {
         res := Map()
         fun(t) {
@@ -372,10 +374,14 @@ seqReverse(a) {
     return range(a.Length, 1, -1).map(i => a[i])
 }
 
-seqPairs(m) {
+pair(k, v) {
+    return [k, v]
+}
+
+seqPairs(enum2, kvMapper := pair) {
     fun() {
-        e := m.__Enum(2)
-        return (&p) => (e.Call(&k, &v) ? p := [k, v] : false)
+        e := enum2 is Enumerator ? enum2 : enum2.__Enum(2)
+        return (&p) => (e.Call(&k, &v) ? p := kvMapper(k, v) : false)
     }
     return EnumSeq(fun)
 }
@@ -415,11 +421,16 @@ seqReadlines(fileName, encoding?) {
 
 seqSplit(s, sep, limit := -1) {
     fun(consumer) {
-        n := 0
-        loop parse s, sep {
-            consumer(A_LoopField)
-            if limit > 0 and ++n == limit {
-                break
+        if limit > 0 {
+            loop parse s, sep {
+                consumer(A_LoopField)
+                if --limit == 0 {
+                    break
+                }
+            }
+        } else {
+            loop parse s, sep {
+                consumer(A_LoopField)
             }
         }
     }
@@ -471,14 +482,14 @@ class ItrSeq extends Seq {
     map(mapper) {
         fun() {
             e := this.__Enum(1)
-            res(&x) {
-                if not e.Call(&t) {
-                    return false
+            g(&x) {
+                if e.Call(&t) {
+                    x := mapper(t)
+                    return true
                 }
-                x := mapper(t)
-                return true
+                return false
             }
-            return res
+            return g
         }
         return EnumSeq(fun)
     }
@@ -486,14 +497,30 @@ class ItrSeq extends Seq {
     mapIndexed(indexedMapper) {
         fun() {
             e := this.__Enum(2)
-            res(&x) {
-                if not e.Call(&i, &t) {
-                    return false
+            g(&x) {
+                if e.Call(&i, &t) {
+                    x := indexedMapper(i, t)
+                    return true
                 }
-                x := indexedMapper(i, t)
-                return true
+                return false
             }
-            return res
+            return g
+        }
+        return EnumSeq(fun)
+    }
+
+    runningFold(init, accumulator) {
+        fun() {
+            acc := init
+            e := this.__Enum(1)
+            g(&x) {
+                if e.Call(&t) {
+                    x := acc := accumulator(acc, t)
+                    return true
+                }
+                return false
+            }
+            return g
         }
         return EnumSeq(fun)
     }
@@ -540,44 +567,5 @@ range(start, end, step := 1) {
         return EnumSeq(negative)
     } else {
         throw ValueError('zero step')
-    }
-}
-
-
-class Maybe {
-    __New(refCall) {
-        this._func := refCall
-    }
-
-    map(fun) {
-        return Maybe((&t) => (
-            this._func.Call(&o),
-            IsSet(o) ? t := fun(o) : 0
-        ))
-    }
-
-    mapOr(fun, o) {
-        this._func.Call(&t)
-        return IsSet(t) ? fun(t) : o
-    }
-
-    mapOrGet(fun, supplier) {
-        this._func.Call(&t)
-        return IsSet(t) ? fun(t) : supplier()
-    }
-
-    orElse(o) {
-        this._func.Call(&t)
-        return IsSet(t) ? t : o
-    }
-
-    orElseGet(supplier) {
-        this._func.Call(&t)
-        return IsSet(t) ? t : supplier()
-    }
-
-    get(&t) {
-        this._func.Call(&t)
-        return IsSet(t)
     }
 }

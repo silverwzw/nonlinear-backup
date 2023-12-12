@@ -1,4 +1,3 @@
-#Include seq.ahk
 #Include strings.ahk
 
 

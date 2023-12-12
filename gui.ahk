@@ -1,6 +1,5 @@
 #SingleInstance Force
 #Include files.ahk
-#Include strings.ahk
 
 
 ListLines false
@@ -8,28 +7,24 @@ KeyHistory 0
 
 globalGui := unset
 globalDisplaySeconds := 0
-displaying := unset
 
 nothing(*) {
 }
 
-display(msg, sec := 3, followGui := false, copy := false) {
-    global displaying
-    displaying := IsSet(displaying) ? displaying '`n' msg : msg
+display(x, sec := 3, followGui := false) {
+    msg := repr(x)
+    static displaying := ''
+    displaying := displaying ? displaying '`n' msg : msg
     if followGui {
         ToolTip(displaying, 0, -14)
     } else {
         ToolTip(displaying)
     }
-    t := -1000 * (globalDisplaySeconds > 0 ? globalDisplaySeconds : sec)
-    SetTimer(() => (displaying := unset, ToolTip()), t)
-    if copy {
-        A_Clipboard := msg
+    if globalDisplaySeconds > 0 {
+        sec := globalDisplaySeconds
     }
-}
-
-displayAll(sec, msg*) {
-    display(join(msg, '`n'), sec)
+    SetTimer(() => (displaying := '', ToolTip()), -1000 * sec)
+    return msg
 }
 
 makeGlobalGui(title?, font := 'consolas', fontOpt := 's10') {
@@ -56,10 +51,6 @@ makeGui(title?, onEscape?) {
     return g
 }
 
-_destroyGui(g) {
-    g.Destroy()
-}
-
 exitGui(g?, preAction?) {
     global globalGui
     if IsSet(preAction) {
@@ -75,7 +66,7 @@ showGui() {
 
 centerWindow() {
     WinGetPos(, , &width, &height, 'A')
-    WinMove((A_ScreenWidth / 2) - (width / 2), (A_ScreenHeight / 2) - (height / 2), , , 'A')
+    WinMove(A_ScreenWidth / 2 - width / 2, A_ScreenHeight / 2 - height / 2, , , 'A')
 }
 
 wrapCmd(gc, callback) {
@@ -93,9 +84,8 @@ popupYesNo(title, text) {
     return MsgBox(text, title, 'YesNo') == 'Yes'
 }
 
-edgeMap := seqAll('│', '└', '┴', '─', '╪', '┼').toMapWith(Ord)
-
 estimateLen(str) {
+    static edgeMap := seqAll('│', '└', '┴', '─', '╪', '┼').toMapWith(Ord)
     return seqSplit(str, '').sum(c => Ord(c) < 128 or edgeMap.Has(c) ? 7.5 : 15)
 }
 
@@ -110,7 +100,7 @@ listViewAll(titles, rows, guiMaker := makeGlobalGui, maxHeight := 30) {
     g := guiMaker()
 
     estColWidth(i) {
-        aMaxBy(rows, &_, r => estimateLen(r[i]), &maxLen)
+        maxBy(rows, &_, r => estimateLen(r[i]), &maxLen)
         return Max(maxLen, estimateLen(titles[i]))
     }
     width := 11 * colNum + range(1, colNum).sum(estColWidth)
@@ -118,7 +108,7 @@ listViewAll(titles, rows, guiMaker := makeGlobalGui, maxHeight := 30) {
     if height < rows.Length {
         width += 11
     }
-    lv := g.AddListView('+NoSortHdr w' width ' r' height, titles)
+    lv := g.AddListView('NoSortHdr w' width ' r' height, titles)
     forEach(rows, row => lv.Add(, row*))
 
     lv.ModifyCol()
@@ -139,12 +129,61 @@ lvGetAllSelected(lv) {
     return EnumSeq(fun)
 }
 
+formatError(e) {
+    return Type(e) ': ' e.Message (e.Extra ? ' (' e.Extra ')' : '')
+}
+
+execSelection() {
+    expression := copySelection()
+    if not expression {
+        return
+    }
+    toStdOut(s) {
+        return 'FileAppend(repr((' s ')), "*")'
+    }
+    if InStr(expression, '`n') {
+        lines := StrSplit(expression, '`n', ' `t`r')
+        for i in range(lines.Length, 1, -1) {
+            if lines[i] {
+                lines[i] := toStdOut(lines[i])
+                break
+            }
+        }
+        content := join(lines, '`n')
+    } else {
+        content := toStdOut(expression)
+    }
+    static shell := ComObject('WScript.Shell')
+    exec := shell.Exec(A_AhkPath ' /ErrorStdOut *')
+    script := Format("
+    (
+        #Warn All, Off
+        #Include {1}
+        try {
+            {2}
+        } catch Error as e {
+            FileAppend(formatError(e), '*')
+        }
+        ExitApp
+    )", A_ScriptFullPath, content)
+    exec.StdIn.WriteLine(script)
+    exec.StdIn.Close()
+    return exec.StdOut.ReadAll()
+}
+
 toExe(name) {
     return 'ahk_exe ' name '.exe'
 }
 
 procName() {
     return SubStr(WinGetProcessName('A'), 1, -4)
+}
+
+gcGetWinId(gc, &id) {
+    try {
+        return id := 'ahk_id ' ControlGetHwnd(gc)
+    } catch Error {
+    }
 }
 
 isWinTitleMatch(pattern) {
@@ -160,8 +199,10 @@ isWinActive(procName, titlePattern?) {
 
 
 #F5:: Reload
-#F8:: display(procName(), , , true)
-#F9:: display(WinGetTitle('A'), , , true)
+#F8:: doCopy(display(procName()))
+#F9:: doCopy(display(WinGetTitle('A')))
+#F12:: doCopy(display(execSelection()))
+
 
 ; listViewAll(['a', 'b', 'c'], [['jifdajifjdaijfjjijijif', 'fsdajifdajofjaosuff', 'jijfidajifjaifjiaufodiuafiufasof']])
 ; listViewAll(['a', 'b', 'c'], [['jifdajifjdaijfj', 'fsda', 'jijfidajifjaifjia']])

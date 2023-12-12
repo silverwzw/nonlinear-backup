@@ -18,6 +18,14 @@ forEachIndexed(a, indexedConsumer) {
     }
 }
 
+first(a, &res) {
+    for t in a {
+        res := t
+        return true
+    }
+    return false
+}
+
 find(a, &res, test) {
     for t in a {
         if test(t) {
@@ -28,20 +36,16 @@ find(a, &res, test) {
     return false
 }
 
-findMaybe(a, test) {
-    return Maybe((&t) => find(a, &t, test))
-}
-
 anyMatch(a, test) {
-    return find(a, &res, test)
+    return find(a, &_, test)
 }
 
 allMatch(a, test) {
-    return not find(a, &res, negate(test))
+    return not find(a, &_, negate(test))
 }
 
 noneMatch(a, test) {
-    return not find(a, &res, test)
+    return not find(a, &_, test)
 }
 
 repeat(n, t) {
@@ -70,6 +74,9 @@ getOr(a, index, default) {
 
 aMap(a, mapper) {
     b := []
+    if a is Array {
+        b.Capacity := a.Capacity
+    }
     for t in a {
         b.Push(mapper(t))
     }
@@ -78,6 +85,9 @@ aMap(a, mapper) {
 
 aMapIndexed(a, indexedMapper) {
     b := []
+    if a is Array {
+        b.Capacity := a.Capacity
+    }
     for i, t in a {
         b.Push(indexedMapper(i, t))
     }
@@ -110,8 +120,26 @@ aSort(a, opt := '') {
 
 aSortBy(a, mapper, opt := '', interSep := '``') {
     sep := '`n'
-    s := Sort(seqof(a).mapIndexed((i, t) => mapper(t) interSep i).join(sep), opt)
+    s := Sort(seqOf(a).mapIndexed((i, t) => mapper(t) interSep i).join(sep), opt)
     return seqSplit(s, sep).map(t => a[Integer(StrSplit(t, interSep)[2])]).toArray()
+}
+
+toIndexMap(a, keyMapper?) {
+    m := Map()
+    IsSet(keyMapper)
+    ? forEachIndexed(a, (i, t) => m[keyMapper(t)] := i)
+    : forEachIndexed(a, (i, t) => m[t] := i)
+    return m
+}
+
+count(a, test) {
+    c := 0
+    for t in a {
+        if test(t) {
+            c++
+        }
+    }
+    return c
 }
 
 sum(a, mapper?) {
@@ -128,7 +156,7 @@ sum(a, mapper?) {
     return sum
 }
 
-aMax(a, &res, comparator?) {
+maxOf(a, &res, comparator?) {
     if IsSet(comparator) {
         for t in a {
             if not IsSet(res) or comparator(res, t) < 0 {
@@ -145,9 +173,9 @@ aMax(a, &res, comparator?) {
     return IsSet(res)
 }
 
-aMaxBy(a, &res, numMapper, &val?) {
+maxBy(a, &res, valMapper, &val?) {
     for t in a {
-        v := numMapper(t)
+        v := valMapper(t)
         if not IsSet(res) or val < v {
             res := t
             val := v
@@ -156,7 +184,7 @@ aMaxBy(a, &res, numMapper, &val?) {
     return IsSet(res)
 }
 
-aMin(a, &res, comparator?) {
+minOf(a, &res, comparator?) {
     if IsSet(comparator) {
         for t in a {
             if not IsSet(res) or comparator(res, t) > 0 {
@@ -173,9 +201,9 @@ aMin(a, &res, comparator?) {
     return IsSet(res)
 }
 
-aMinBy(a, &res, numMapper, &val?) {
+minBy(a, &res, valMapper, &val?) {
     for t in a {
-        v := numMapper(t)
+        v := valMapper(t)
         if not IsSet(res) or val > v {
             res := t
             val := v
@@ -192,6 +220,49 @@ mGet(m, key, &value) {
     return false
 }
 
-mGetMaybe(m, key) {
-    return Maybe((&t) => mGet(m, key, &t))
+itemGet(x) {
+    if HasProp(x, '__Item') {
+        return t => x[t]
+    }
+    throw TypeError('Unsupported type: ' Type(x))
+}
+
+isIn(x) {
+    if x is Map or x is Array {
+        return t => x.Has(t)
+    }
+    if x is Enumerator {
+        return t => anyMatch(x, e => e == t)
+    }
+    if x is String {
+        return InStr.Bind(x)
+    }
+    throw TypeError('Unsupported type: ' Type(x))
+}
+
+notIn(x) {
+    if x is Map or x is Array {
+        return t => not x.Has(t)
+    }
+    if x is Array or x is Enumerator {
+        return t => noneMatch(x, e => e == t)
+    }
+    if x is String {
+        return t => not InStr(x, t)
+    }
+    throw TypeError('Unsupported type: ' Type(x))
+}
+
+moveWhile(t, unaryMapper, condition) {
+    while condition(t) {
+        t := unaryMapper(t)
+    }
+    return t
+}
+
+moveUntil(t, unaryMapper, condition) {
+    loop {
+        t := unaryMapper(t)
+    } until condition(t)
+    return t
 }

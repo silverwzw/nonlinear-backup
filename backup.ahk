@@ -3,34 +3,7 @@
 
 
 cmdMap := seqAll('Enter', 'CtrlUp', 'CtrlDown', 'Del', 'RButton').toMapWith(name => nothing)
-
-checkTimeFormat(time) {
-    if not isFullMatch(time, '[0-9]{14}') {
-        throw ValueError('illegal time format: ' time)
-    }
-}
-
-timeEncode(time) {
-    checkTimeFormat(time)
-    return sys60Encode(Integer(SubStr(time, 2)))
-}
-
-timeDecode(encoding) {
-    if not encoding {
-        return ''
-    }
-    s := String(sys60Decode(encoding))
-    len := StrLen(s)
-    return len == 12 ? '20' s : (len == 13 ? '2' s : s)
-}
-
-readableTime(time) {
-    if not time {
-        return ''
-    }
-    checkTimeFormat(time)
-    return FormatTime(time, "yyyyMMdd HH:mm:ss")
-}
+treeListView := unset
 
 quit(msg) {
     display(msg)
@@ -50,7 +23,7 @@ parseConfig(head, rest) {
         stop()
     }
     configMap := seqOf(rest)
-        .map(ln => StrSplit(ln, '=', ' `t', 2))
+        .map(StrSplit.Bind(, '=', ' `t', 2))
         .filter(a => a.Length == 2)
         .toMap(a => a[1], a => a[2])
     if not mGet(configMap, 'dir', &dir) {
@@ -65,9 +38,8 @@ parseConfig(head, rest) {
 
 procMap := seqReadlines(backupIni)
     .filter(ln => ln and not startsWith(ln, ';'))
-    .mapSub(ln => surroundedWith(ln, '[', ']'), parseConfig)
+    .mapSub(surroundedWith.Bind(, '[', ']'), parseConfig)
     .toMap(a => a[1], a => a[2])
-
 
 if procMap.Count == 0 {
     quit('无存档配置')
@@ -94,8 +66,8 @@ class NonlinearBackup {
         this.title := config.Get('title', '')
         this.pattern := config.Get('pattern', '*')
         this.hotkey := config.Get('hotkey', '')
-        this.keywait := nGetMaybe(config, 'keywait').orElse(0)
-        this.update()
+        this.keywait := nGet(config, 'keywait', &kw) ? kw : 0
+        this.load()
     }
 
     static clearAuto(config) {
@@ -112,11 +84,26 @@ class NonlinearBackup {
         return NonlinearBackup.appName
     }
 
-    update() {
+    loadHead() {
+        return scanFiles(this.target).find(&res, f => not fileExt(f)) ? fileName(res) : ''
+    }
+
+    load() {
         this.saves := scanFilesLatest(this.target, , 'D').map(fileName).toArray()
         this.entries := aMap(this.saves, f => StrSplit(f, '#'))
+        this.nodeIndexMap := toIndexMap(this.entries, e => e[1])
         this.entries.Push(['', '', '[双击打开路径]'])
-        this.head := scanFiles(this.target).findMaybe(f => not fileExt(f)).mapOr(fileName, '')
+    }
+
+    getIndex(node, &index) {
+        return node and mGet(this.nodeIndexMap, node, &index)
+    }
+
+    askRename(saveName, entry) {
+        if popupYesNo('重命名存档', '已有存档: ' entry[3] '`n是否重命名') {
+            this.renameSave(this.saves[1], entry[1], entry[2], saveName)
+            exitGuiWith(saveName ' - 已重命名', 3)
+        }
     }
 
     doSave(saveName, auto, &msg) {
@@ -126,13 +113,17 @@ class NonlinearBackup {
             return false
         }
         timestamp := timeEncode(latestTime)
-        first := this.entries[1]
-        if first[1] == timestamp {
-            if not auto and popupYesNo('重命名存档', '已有最新存档: ' first[3] '`n是否重命名') {
-                this.renameSave(this.saves[1], first[1], first[2], saveName)
-                exitGuiWith(saveName ' - 已重命名', 3)
+        if first(this.entries, &fst) and timestamp == fst[1] {
+            if not auto {
+                this.askRename(saveName, fst)
             }
-            ; msg := '已是最新'
+            return false
+        }
+        head := this.loadHead()
+        if timestamp == head {
+            if not auto and this.getIndex(head, &headIndex) {
+                this.askRename(saveName, this.entries[headIndex])
+            }
             return false
         }
         if not auto {
@@ -147,15 +138,23 @@ class NonlinearBackup {
                 Sleep((this.keywait or 1) * 1000)
             }
         }
-        folder := timestamp '#' this.head '#' saveName
-        filesBackup(this.target, folder, srcFiles.map(filePath))
+        filesBackup(this.target, timestamp '#' head '#' saveName, srcFiles.map(filePath))
         this.setHead(timestamp)
+        if IsSet(treeListView) {
+            if gcGetWinId(treeListView, &lvId) and WinExist(lvId) {
+                selections := lvGetAllSelected(treeListView).map(i => i + 1).toArray()
+                this.showSaves(true, selections*)
+            } else {
+                global treeListView
+                treeListView := unset
+            }
+        }
         return true
     }
 
     checkAuto(saveName, &msg) {
-        if startsWith(saveName, 'auto=') {
-            sub := SubStr(saveName, 6)
+        if startsWith(saveName, '=') {
+            sub := SubStr(saveName, 2)
             if isFullMatch(sub, '[+-]?[0-9]+[hHmMsS]') {
                 config := procMap[this.proc]
                 len := StrLen(sub)
@@ -186,7 +185,7 @@ class NonlinearBackup {
                     if this.doSave(String(A_Now), true, &_) {
                         display(this.proc ' - 已自动备份')
                     }
-                    this.update()
+                    this.load()
                     if num < 0 {
                         NonlinearBackup.clearAuto(config)
                     }
@@ -231,7 +230,10 @@ class NonlinearBackup {
         cmdMap['Enter'] := wrapCmd(gc, onEnter)
     }
 
-    showSaves(selections*) {
+    showSaves(reload, selections*) {
+        if reload {
+            this.load()
+        }
         size := this.entries.Length
         if size <= 1 {
             display('暂无备份')
@@ -256,25 +258,18 @@ class NonlinearBackup {
                 }
                 msg := '已删除未归档备份'
             }
-            this.update()
-            this.showSaves()
+            this.showSaves(true, 1)
             display(msg, 3, true)
             return
         }
         rg := range(1, size - 1)
-        nodeIndexMap := rg.toMapBy(i => this.entries[i][1])
-        parentMap := rg.toMapWith(i => nodeIndexMap.Get(this.entries[i][2], size))
-        childrenMap := rg.groupBy(i => parentMap[i], i => i)
+        parentArray := rg.map(i => this.nodeIndexMap.Get(this.entries[i][2], size)).toArray()
+        childrenMap := rg.groupBy(itemGet(parentArray))
         tree := repeatBy(size, () => repeat(size, ' '))
 
-        foundHead := false
+        headIndex := this.nodeIndexMap.Get(this.loadHead(), 0)
         fillNode(i, j) {
-            if not foundHead and this.entries[i][1] == this.head {
-                foundHead := true
-                tree[i][j] := '╪'
-            } else {
-                tree[i][j] := '┼'
-            }
+            tree[i][j] := headIndex == i ? '╪' : '┼'
             if not mGet(childrenMap, i, &children) {
                 return j
             }
@@ -313,7 +308,8 @@ class NonlinearBackup {
         }
         rows := aMapIndexed(this.entries, (i, e) => [beautifyRow(tree[i]) ' ' e[3], readableTime(timeDecode(e[1]))])
 
-        lv := listViewAll(['存档树', '时间'], rows, () => makeGlobalGui(this.getAppTitle()))
+        global treeListView
+        treeListView := lv := listViewAll(['存档树', '时间'], rows, makeGlobalGui.Bind(this.getAppTitle()))
         lv.OnEvent('DoubleClick', (gc, index) => index == size ? Run(this.target) : 0)
         for i in selections {
             lvSelect(lv, i)
@@ -339,12 +335,12 @@ class NonlinearBackup {
             if selected.Length == 2 {
                 i := selected[1]
                 j := selected[2]
-                p := parentMap[i]
+                p := parentArray[i]
                 if p == j and p == size {
                     return
                 }
                 this.changeParent(i, p == j ? size : j, true)
-                this.showSaves(i, j)
+                this.showSaves(false, i, j)
             }
         }
         cmdMap['RButton'] := wrapCmd(lv, onRButton)
@@ -360,34 +356,50 @@ class NonlinearBackup {
         onCtrlDown(lv) {
             index := lv.GetNext()
             if index < size {
-                SendInput('{Down ' parentMap[index] - index '}')
+                SendInput('{Down ' parentArray[index] - index '}')
             }
         }
         cmdMap['CtrlDown'] := wrapCmd(lv, onCtrlDown)
 
         onDel(lv) {
-            index := lv.GetNext()
-            if index == 0 or index == size {
+            selectionSet := lvGetAllSelected(lv).toSet()
+            if selectionSet.Has(0) or selectionSet.Has(size) {
                 return
             }
-            parent := parentMap[index]
-            if mGet(childrenMap, index, &children) and children.Length > 1 {
-                return '存在多个子节点 无法删除'
+            newParentMap := Map()
+            for index in selectionSet {
+                if mGet(childrenMap, index, &children) {
+                    restChildren := filter(children, notIn(selectionSet))
+                    if restChildren.Length == 0 {
+                        continue
+                    }
+                    if restChildren.Length > 1 {
+                        forEach(selectionSet, i => lvSelect(lv, i))
+                        return this.entries[index][3] ' 存在多个子节点 无法删除'
+                    }
+                    rest := restChildren[1]
+                    newParentMap[rest] := moveUntil(rest, itemGet(parentArray), notIn(selectionSet))
+                }
             }
-            curr := this.entries[index]
-            if not popupYesNo('删除存档', '是否删除存档：' curr[3]) {
+            if not popupYesNo('删除存档', '是否删除存档：`n' join(selectionSet, '`n', i => '- ' this.entries[i][3])) {
                 return
             }
-            if IsSet(children) {
-                this.changeParent(children[1], parent)
+            if this.getIndex(this.loadHead(), &headIndex) {
+                headIndex := moveWhile(headIndex, itemGet(parentArray), isIn(selectionSet))
             }
-            if curr[1] == this.head and parent < size {
-                this.changeHead(parent)
+            for index in selectionSet {
+                DirDelete(this.target '\' this.saves[index], true)
             }
-            DirDelete(this.target '\' this.saves[index], true)
-            exitGuiWith(curr[3] ' - 已删除', 4)
-            this.update()
-            this.showSaves(index)
+            for i, p in newParentMap {
+                if p < size {
+                    this.changeParent(i, p)
+                }
+            }
+            if IsSet(headIndex) {
+                this.changeHead(headIndex)
+            }
+            exitGuiWith('存档已删除', 4)
+            this.showSaves(true, 1)
         }
         cmdMap['Del'] := wrapCmd(lv, onDel)
     }
@@ -397,8 +409,15 @@ class NonlinearBackup {
     }
 
     setHead(timestamp) {
-        if this.head {
-            FileMove(this.target '\' this.head, this.target '\' timestamp)
+        head := this.loadHead()
+        if head {
+            if timestamp != head {
+                try {
+                    FileMove(this.target '\' head, this.target '\' timestamp)
+                } catch Error as e {
+                    display(head (FileExist(this.target '\' head) ? '存在' : '不存在') ' => ' timestamp)
+                }
+            }
         } else {
             FileAppend('', this.target '\' timestamp)
         }
@@ -431,28 +450,29 @@ F1:: {
     g := makeGui('快捷键列表', g => g.Destroy())
     g.SetFont('s9', 'consolas')
     g.Opt('ToolWindow')
-    lines := [
-        '游戏或工作界面',
-        'Win+F5  : 重新加载配置',
-        'Win+F6  : 新建存档备份',
-        'Win+F7  : 打开存档树',
-        'Win+F8  : 获取当前程序名',
-        'Win+F9  : 获取当前窗口标题',
-        '',
-        '本应用界面',
-        'ESC     : 退出当前窗口',
-        'F1      : 快捷键列表',
-        '',
-        '存档树界面',
-        '↑       : 向上（较新存档）',
-        '↓       : 向下（较旧存档）',
-        'Ctrl+↑  : 向上跳转最新子节点',
-        'Ctrl+↓  : 向下跳转父节点',
-        'Enter   : 载入存档',
-        'Delete  : 删除存档',
-        'RButton : 重设父节点',
-    ]
-    g.AddText('w190', join(lines, '`n'))
+    content := "
+    (
+        游戏或工作界面
+        Win+F5  : 重新加载配置
+        Win+F6  : 新建存档备份
+        Win+F7  : 打开存档树
+        Win+F8  : 获取当前程序名
+        Win+F9  : 获取当前窗口标题
+        
+        本应用界面
+        ESC     : 退出当前窗口
+        F1      : 快捷键列表
+        
+        存档树界面
+        ↑       : 向上（较新存档）
+        ↓       : 向下（较旧存档）
+        Ctrl+↑  : 向上跳转最新子节点
+        Ctrl+↓  : 向下跳转父节点
+        Enter   : 载入存档
+        Delete  : 删除存档
+        RButton : 重设父节点
+    )"
+    g.AddText('w195', content)
     g.Show()
 }
 #HotIf
@@ -469,4 +489,4 @@ runBackupHelper(action) {
 }
 
 #F6:: runBackupHelper(bh => bh.saveFiles())
-#F7:: runBackupHelper(bh => bh.showSaves(1))
+#F7:: runBackupHelper(bh => bh.showSaves(false, 1))
