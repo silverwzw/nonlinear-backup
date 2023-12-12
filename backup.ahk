@@ -90,7 +90,7 @@ class NonlinearBackup {
 
     load() {
         this.saves := scanFilesLatest(this.target, , 'D').map(fileName).toArray()
-        this.entries := aMap(this.saves, f => StrSplit(f, '#'))
+        this.entries := aMap(this.saves, f => StrSplit(f, '#', , 3))
         this.nodeIndexMap := toIndexMap(this.entries, e => e[1])
         this.entries.Push(['', '', '[双击打开路径]'])
     }
