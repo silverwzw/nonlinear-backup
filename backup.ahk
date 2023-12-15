@@ -439,8 +439,8 @@ class NonlinearBackup {
 }
 
 
-#HotIf isWinActive('AutoHotKey64', NonlinearBackup.appName '*')
-; #HotIf isWinActive('backup', BackupHelper.appName '*')
+; #HotIf isWinActive('AutoHotKey64', NonlinearBackup.appName '*')
+#HotIf isWinActive('backup', NonlinearBackup.appName '*')
 Enter:: cmdMap['Enter'].Call()
 ^Up:: cmdMap['CtrlUp'].Call()
 ^Down:: cmdMap['CtrlDown'].Call()
@@ -480,10 +480,8 @@ F1:: {
 runBackupHelper(action) {
     proc := procName()
     if procMap.getVal(proc, &config) {
-        if config.getVal('title', &title) {
-            if not title or isWinTitleMatch(title) {
-                action(NonlinearBackup(proc, config))
-            }
+        if not config.getVal('title', &title) or not title or isWinTitleMatch(title) {
+            action(NonlinearBackup(proc, config))
         }
     }
 }
