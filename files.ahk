@@ -8,9 +8,9 @@ scanFiles(dir, pattern := '*', mode := 'F') {
         }
     }
     if pattern == '*.*' and InStr(mode, 'F') {
-        return Seq(fun).filter(a => fileIsDir(a) or fileExt(a))
+        return CallbackSeq(fun).filter(a => fileIsDir(a) or fileExt(a))
     } else {
-        return Seq(fun)
+        return CallbackSeq(fun)
     }
 }
 

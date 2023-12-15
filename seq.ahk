@@ -18,71 +18,79 @@ negate(test) {
     return x => not test(x)
 }
 
+
 class Seq {
-    __New(consumerConsumer) {
-        this.consumerConsumer := consumerConsumer
-    }
-
-    consume(consumer) {
-        try {
-            this.consumerConsumer.Call(consumer)
-        } catch StopError {
-        }
-    }
-
-    fold(acc, accumulator) {
+    static fold(acc, accumulator) {
         this.consume(t => acc := accumulator(acc, t))
         return acc
     }
 
-    reduce(des, reducer) {
+    static reduce(des, reducer) {
         this.consume(t => reducer(des, t))
         return des
     }
 
-    consumeIndexed(indexedConsumer) {
+    static consumeIndexed(indexedConsumer) {
         i := 1
         this.consume(t => indexedConsumer(i++, t))
         return i
     }
 
-    map(mapper) {
-        return Seq(c => this.consume(t => c(mapper(t))))
+    static map(mapper) {
+        return CallbackSeq(c => this.consume(t => c(mapper(t))))
     }
 
-    mapIndexed(indexedMapper) {
+    static mapIndexed(indexedMapper) {
         fun(c) {
             i := 1
             this.consume(t => c(indexedMapper(i++, t)))
         }
-        return Seq(fun)
+        return CallbackSeq(fun)
     }
 
-    onEach(consumer) {
-        return Seq(c => this.consume(t => (consumer(t), c(t))))
+    static mapOut(mapper) {
+        b := []
+        this.consume(t => b.Push(mapper(t)))
+        return b
     }
 
-    filter(test) {
-        return Seq(c => this.consume(t => test(t) ? c(t) : 0))
+    static mapIndexedOut(indexedMapper) {
+        b := []
+        this.consumeIndexed((i, t) => b.Push(indexedMapper(i, t)))
+        return b
     }
 
-    take(n) {
-        return Seq(c => this.consumeIndexed((i, t) => i <= n ? c(t) : stop()))
+    static filter(test) {
+        return CallbackSeq(c => this.consume(t => test(t) ? c(t) : 0))
     }
 
-    drop(n) {
+    static filterOut(test) {
+        b := []
+        this.consume(t => test(t) ? b.Push(t) : 0)
+        return b
+    }
+
+    static onEach(consumer) {
+        return CallbackSeq(c => this.consume(t => (consumer(t), c(t))))
+    }
+
+    static take(n) {
+        return CallbackSeq(c => this.consumeIndexed((i, t) => i <= n ? c(t) : stop()))
+    }
+
+    static drop(n) {
         return this.partial(t => 0, n)
     }
 
-    partial(consumer, n := 1) {
-        return Seq(c => this.consumeIndexed((i, t) => (i > n ? c : consumer).Call(t)))
+    static partial(consumer, n := 1) {
+        return CallbackSeq(c => this.consumeIndexed((i, t) => (i > n ? c : consumer).Call(t)))
     }
 
-    takeWhile(test) {
-        return Seq(c => this.consume(t => test(t) ? c(t) : stop()))
+    static takeWhile(test) {
+        return CallbackSeq(c => this.consume(t => test(t) ? c(t) : stop()))
     }
 
-    dropWhile(test) {
+    static dropWhile(test) {
         fun(c) {
             done := false
             g(t) {
@@ -95,10 +103,10 @@ class Seq {
             }
             this.consume(g)
         }
-        return Seq(fun)
+        return CallbackSeq(fun)
     }
 
-    chunked(n) {
+    static chunked(n) {
         fun(c) {
             a := []
             g(t) {
@@ -113,62 +121,62 @@ class Seq {
                 c(a)
             }
         }
-        return Seq(fun)
+        return CallbackSeq(fun)
     }
 
-    flatMap(toSeqMapper) {
-        return Seq(c => this.consume(t => toSeqMapper(t).consume(c)))
+    static flatMap(toSeqMapper) {
+        return CallbackSeq(c => this.consume(t => toSeqMapper(t).consume(c)))
     }
 
-    runningFold(init, accumulator) {
+    static runningFold(init, accumulator) {
         fun(c) {
             acc := init
             this.consume(t => c(acc := accumulator(acc, t)))
         }
-        return Seq(fun)
+        return CallbackSeq(fun)
     }
 
-    append(t*) {
+    static append(t*) {
         this.appendAll(t)
     }
 
-    appendAll(a) {
+    static appendAll(a) {
         fun(c) {
             this.consume(c)
             for t in a {
                 c(a)
             }
         }
-        return Seq(fun)
+        return CallbackSeq(fun)
     }
 
-    any(test) {
+    static any(test) {
         return this.find(&_, test)
     }
 
-    all(test) {
+    static all(test) {
         return not this.find(&_, negate(test))
     }
 
-    none(test) {
+    static none(test) {
         return not this.find(&_, test)
     }
 
-    first(&res) {
+    static first(&res) {
         this.consume(t => (res := t, stop()))
         return IsSet(res)
     }
 
-    find(&res, test) {
+    static find(&res, test) {
         this.consume(t => test(t) ? (res := t, stop()) : 0)
         return IsSet(res)
     }
 
-    count(test?) {
+    static count(test?) {
         return IsSet(test) ? this.sum(t => test(t) ? 1 : 0) : this.sum(t => 1)
     }
 
-    sum(numMapper?) {
+    static sum(numMapper?) {
         res := 0
         if IsSet(numMapper) {
             this.consume(t => res += numMapper(t))
@@ -178,7 +186,7 @@ class Seq {
         return res
     }
 
-    average(numMapper, weightMapper?) {
+    static average(numMapper, weightMapper?) {
         sum := 0
         weight := 0
         if IsSet(weightMapper) {
@@ -199,7 +207,7 @@ class Seq {
         return weight > 0 ? sum / weight : 0
     }
 
-    max(&res, comparator?) {
+    static max(&res, comparator?) {
         if IsSet(comparator) {
             ifCmp(t) {
                 if not IsSet(res) or comparator(res, t) < 0 {
@@ -218,7 +226,7 @@ class Seq {
         return IsSet(res)
     }
 
-    maxBy(&res, valMapper, &val?) {
+    static maxBy(&res, valMapper, &val?) {
         fun(t) {
             v := valMapper(t)
             if not IsSet(res) or val < v {
@@ -230,7 +238,7 @@ class Seq {
         return IsSet(res)
     }
 
-    min(&res, comparator?) {
+    static min(&res, comparator?) {
         if IsSet(comparator) {
             ifCmp(t) {
                 if not IsSet(res) or comparator(res, t) > 0 {
@@ -249,7 +257,7 @@ class Seq {
         return IsSet(res)
     }
 
-    minBy(&res, valMapper, &val?) {
+    static minBy(&res, valMapper, &val?) {
         fun(t) {
             v := valMapper(t)
             if not IsSet(res) or val > v {
@@ -261,34 +269,60 @@ class Seq {
         return IsSet(res)
     }
 
-    sort(opt := '') {
+    static distinct() {
+        fun(c) {
+            m := Map()
+            return this.consume(t => m.Has(t) ? 0 : c(m[t] := t))
+        }
+        return CallbackSeq(fun)
+    }
+
+    static distinctBy(mapper) {
+        fun(c) {
+            m := Map()
+            return this.consume(t => (k := mapper(t), m.Has(k) ? 0 : c(m[k] := t)))
+        }
+        return CallbackSeq(fun)
+    }
+
+    static sort(optCNR := 'C') {
         sep := '`n'
-        s := Sort(this.join(sep), opt)
+        s := Sort(this.join(sep), optCNR)
         return seqSplit(s, sep)
     }
 
-    sortBy(mapper, opt := '', interSep := '``') {
+    static sortOut(optCNR := 'C') {
         sep := '`n'
-        a := this.toArray()
-        s := Sort(this.mapIndexed((i, t) => mapper(t) interSep i).join(sep), opt)
-        return seqSplit(s, sep).map(t => a[Integer(StrSplit(t, interSep)[2])])
+        s := Sort(this.join(sep), optCNR)
+        return StrSplit(s, sep)
     }
 
-    reverse() {
-        return seqReverse(this.toArray())
+    static sortBy(mapper, optCNR := 'C', interSep := '``') {
+        sep := '`n'
+        a := this.toArr()
+        after := Sort(this.mapIndexed((i, t) => mapper(t) interSep i).join(sep), optCNR)
+        return seqSplit(after, sep).map(t => a[Integer(StrSplit(t, interSep)[2])])
     }
 
-    toArray() {
+    static toArr() {
         return this.reduce([], _arrayPusher)
     }
 
-    partition(test, &part1, &part2) {
+    static reverse() {
+        return this.toArr().reverse()
+    }
+
+    static reverseOut() {
+        return this.toArr().reverseOut()
+    }
+
+    static partition(test, &part1, &part2) {
         part1 := []
         part2 := []
         this.consume(t => (test(t) ? part1 : part2).Push(t))
     }
 
-    mapSub(headTest, headRestMapper) {
+    static mapSub(headTest, headRestMapper) {
         head := unset
         rest := unset
         f(c) {
@@ -308,36 +342,34 @@ class Seq {
                 c(headRestMapper(head, rest))
             }
         }
-        return Seq(f)
+        return CallbackSeq(f)
     }
 
-    cache() {
-        return seqOf(this.toArray())
-    }
-
-    toMap(keyMapper, valueMapper) {
+    static toMap(keyMapper, valueMapper) {
         return this.reduce(Map(), (m, x) => m[keyMapper(x)] := valueMapper(x))
     }
 
-    toMapBy(keyMapper) {
+    static toMapBy(keyMapper) {
         return this.reduce(Map(), (m, x) => m[keyMapper(x)] := x)
     }
 
-    toMapWith(valueMapper) {
+    static toMapWith(valueMapper) {
         return this.reduce(Map(), (m, x) => m[x] := valueMapper(x))
     }
 
-    toIndexMap() {
+    static toIndexMap(keyMapper?) {
         m := Map()
-        this.consumeIndexed((i, t) => m[t] := i)
+        IsSet(keyMapper)
+        ? this.consumeIndexed((i, t) => m[keyMapper(t)] := i)
+        : this.consumeIndexed((i, t) => m[t] := i)
         return m
     }
 
-    toSet() {
+    static toSet() {
         return this.reduce(Map(), (m, x) => m[x] := '')
     }
 
-    groupBy(toKey, valueMapper?) {
+    static groupBy(toKey, valueMapper?) {
         res := Map()
         fun(t) {
             key := toKey(t)
@@ -352,26 +384,23 @@ class Seq {
         return res
     }
 
-    join(sep?) {
-        if IsSet(sep) and sep {
-            rest := false
-            return this.fold('', (acc, t) => rest ? acc sep t : (rest := true, t))
+    static join(sep?, mapper?) {
+        if IsSet(mapper) {
+            if IsSet(sep) and sep {
+                rest := false
+                return this.fold('', (acc, t) => rest ? acc sep mapper(t) : (rest := true, mapper(t)))
+            } else {
+                return this.fold('', (acc, t) => acc mapper(t))
+            }
         } else {
-            return this.fold('', _strConcat)
+            if IsSet(sep) and sep {
+                rest := false
+                return this.fold('', (acc, t) => rest ? acc sep t : (rest := true, t))
+            } else {
+                return this.fold('', _strConcat)
+            }
         }
     }
-}
-
-seqOf(a) {
-    return a is Array ? ArraySeq(a) : ItrSeq(a)
-}
-
-seqAll(x*) {
-    return ArraySeq(x)
-}
-
-seqReverse(a) {
-    return range(a.Length, 1, -1).map(i => a[i])
 }
 
 pair(k, v) {
@@ -382,6 +411,22 @@ seqPairs(enum2, kvMapper := pair) {
     fun() {
         e := enum2 is Enumerator ? enum2 : enum2.__Enum(2)
         return (&p) => (e.Call(&k, &v) ? p := kvMapper(k, v) : false)
+    }
+    return EnumSeq(fun)
+}
+
+seqRepeat(n, t) {
+    fun() {
+        i := 0
+        return (&x) => (x := t, i++ < n)
+    }
+    return EnumSeq(fun)
+}
+
+seqRepeatBy(n, supplier) {
+    fun() {
+        i := 0
+        return (&x) => (x := supplier(), i++ < n)
     }
     return EnumSeq(fun)
 }
@@ -434,122 +479,7 @@ seqSplit(s, sep, limit := -1) {
             }
         }
     }
-    return Seq(fun)
-}
-
-seqRepeat(n, t) {
-    fun() {
-        i := 0
-        return (&x) => (x := t, i++ < n)
-    }
-    return EnumSeq(fun)
-}
-
-seqRepeatBy(n, supplier) {
-    fun() {
-        i := 0
-        return (&x) => (x := supplier(), i++ < n)
-    }
-}
-
-class ItrSeq extends Seq {
-    __New(a) {
-        this._a := a
-    }
-
-    __Enum(NumberOfVars) {
-        return this._a.__Enum(NumberOfVars)
-    }
-
-    consume(consumer) {
-        try {
-            for t in this {
-                consumer(t)
-            }
-        } catch StopError {
-        }
-    }
-
-    consumeIndexed(indexedConsumer) {
-        try {
-            for i, t in this {
-                indexedConsumer(i, t)
-            }
-        } catch StopError {
-        }
-    }
-
-    map(mapper) {
-        fun() {
-            e := this.__Enum(1)
-            g(&x) {
-                if e.Call(&t) {
-                    x := mapper(t)
-                    return true
-                }
-                return false
-            }
-            return g
-        }
-        return EnumSeq(fun)
-    }
-
-    mapIndexed(indexedMapper) {
-        fun() {
-            e := this.__Enum(2)
-            g(&x) {
-                if e.Call(&i, &t) {
-                    x := indexedMapper(i, t)
-                    return true
-                }
-                return false
-            }
-            return g
-        }
-        return EnumSeq(fun)
-    }
-
-    runningFold(init, accumulator) {
-        fun() {
-            acc := init
-            e := this.__Enum(1)
-            g(&x) {
-                if e.Call(&t) {
-                    x := acc := accumulator(acc, t)
-                    return true
-                }
-                return false
-            }
-            return g
-        }
-        return EnumSeq(fun)
-    }
-}
-
-
-class ArraySeq extends ItrSeq {
-    toArray() {
-        return this._a
-    }
-}
-
-
-class EnumSeq extends ItrSeq {
-    __New(enumFunc) {
-        this._enumFunc := enumFunc
-    }
-
-    __Enum(NumberOfVars) {
-        fun := this._enumFunc.Call()
-        if NumberOfVars == 1 {
-            return fun
-        } else if NumberOfVars == 2 {
-            j := 1
-            return (&i, &t) => (i := j++, fun(&t))
-        } else {
-            throw ValueError(NumberOfVars)
-        }
-    }
+    return CallbackSeq(fun)
 }
 
 range(start, end, step := 1) {
@@ -567,5 +497,132 @@ range(start, end, step := 1) {
         return EnumSeq(negative)
     } else {
         throw ValueError('zero step')
+    }
+}
+
+class CallbackSeq {
+    static Prototype.Base := Seq
+
+    __New(consumerConsumer) {
+        this.consumerConsumer := consumerConsumer
+    }
+
+    consume(consumer) {
+        try {
+            this.consumerConsumer.Call(consumer)
+        } catch StopError {
+        }
+    }
+}
+
+class Iterable extends Seq {
+    static consume(consumer) {
+        try {
+            for t in this {
+                consumer(t)
+            }
+        } catch StopError {
+        }
+    }
+
+    static consumeIndexed(indexedConsumer) {
+        try {
+            for i, t in this {
+                indexedConsumer(i, t)
+            }
+        } catch StopError {
+        }
+    }
+
+    static map(mapper) {
+        fun() {
+            e := this.__Enum(1)
+            g(&x) {
+                if e.Call(&t) {
+                    x := mapper(t)
+                    return true
+                }
+                return false
+            }
+            return g
+        }
+        return EnumSeq(fun)
+    }
+
+    static mapIndexed(indexedMapper) {
+        fun() {
+            e := this.__Enum(2)
+            g(&x) {
+                if e.Call(&i, &t) {
+                    x := indexedMapper(i, t)
+                    return true
+                }
+                return false
+            }
+            return g
+        }
+        return EnumSeq(fun)
+    }
+
+    static filter(test) {
+        fun() {
+            e := this.__Enum(1)
+            g(&x) {
+                while e.Call(&t) {
+                    if test(t) {
+                        x := t
+                        return true
+                    }
+                }
+                return false
+            }
+            return g
+        }
+        return EnumSeq(fun)
+    }
+
+    static runningFold(init, accumulator) {
+        fun() {
+            acc := init
+            e := this.__Enum(1)
+            g(&x) {
+                if e.Call(&t) {
+                    x := acc := accumulator(acc, t)
+                    return true
+                }
+                return false
+            }
+            return g
+        }
+        return EnumSeq(fun)
+    }
+}
+
+class EnumSeq {
+    static Prototype.Base := Iterable
+
+    __New(enumFunc) {
+        this.enumFunc := enumFunc
+    }
+
+    __Enum(NumberOfVars) {
+        fun := this.enumFunc.Call()
+        if NumberOfVars == 1 {
+            return fun
+        } else if NumberOfVars == 2 {
+            j := 1
+            return (&i, &t) => (i := j++, fun(&t))
+        } else {
+            throw ValueError(NumberOfVars)
+        }
+    }
+}
+
+extendClass(target, base) {
+    define := Object.Prototype.DefineProp
+    for prop in base.OwnProps() {
+        if SubStr(prop, 1, 2) != '__' {
+            define(target.Prototype, prop, base.GetOwnPropDesc(prop))
+        }
     }
 }

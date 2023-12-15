@@ -2,7 +2,7 @@
 #Include gui.ahk
 
 
-cmdMap := seqAll('Enter', 'CtrlUp', 'CtrlDown', 'Del', 'RButton').toMapWith(name => nothing)
+cmdMap := (['Enter', 'CtrlUp', 'CtrlDown', 'Del', 'RButton']).toMapWith(name => nothing)
 treeListView := unset
 
 quit(msg) {
@@ -22,11 +22,11 @@ parseConfig(head, rest) {
         quit('未找到配置：' proc)
         stop()
     }
-    configMap := seqOf(rest)
+    configMap := rest
         .map(StrSplit.Bind(, '=', ' `t', 2))
         .filter(a => a.Length == 2)
         .toMap(a => a[1], a => a[2])
-    if not mGet(configMap, 'dir', &dir) {
+    if not configMap.getVal('dir', &dir) {
         quit('缺失存档路径 dir: ' proc)
         stop()
     } else if not FileExist(dir) {
@@ -37,8 +37,8 @@ parseConfig(head, rest) {
 }
 
 procMap := seqReadlines(backupIni)
-    .filter(ln => ln and not startsWith(ln, ';'))
-    .mapSub(surroundedWith.Bind(, '[', ']'), parseConfig)
+    .filter(ln => ln and not ln.startsWith(';'))
+    .mapSub(ln => ln.surroundedWith('[', ']'), parseConfig)
     .toMap(a => a[1], a => a[2])
 
 if procMap.Count == 0 {
@@ -66,7 +66,7 @@ class NonlinearBackup {
         this.title := config.Get('title', '')
         this.pattern := config.Get('pattern', '*')
         this.hotkey := config.Get('hotkey', '')
-        this.keywait := nGet(config, 'keywait', &kw) ? kw : 0
+        this.keywait := config.getNum('keywait', &kw) ? kw : 0
         this.load()
     }
 
@@ -76,8 +76,8 @@ class NonlinearBackup {
     }
 
     getAppTitle() {
-        if mGet(procMap, this.proc, &config) {
-            if mGet(config, NonlinearBackup.autoText, &text) {
+        if procMap.getVal(this.proc, &config) {
+            if config.getVal(NonlinearBackup.autoText, &text) {
                 return NonlinearBackup.appName ' (' text ')'
             }
         }
@@ -89,14 +89,14 @@ class NonlinearBackup {
     }
 
     load() {
-        this.saves := scanFilesLatest(this.target, , 'D').map(fileName).toArray()
-        this.entries := aMap(this.saves, f => StrSplit(f, '#', , 3))
-        this.nodeIndexMap := toIndexMap(this.entries, e => e[1])
+        this.saves := scanFilesLatest(this.target, , 'D').mapOut(fileName)
+        this.entries := this.saves.mapOut(f => StrSplit(f, '#', , 3))
+        this.nodeIndexMap := this.entries.toIndexMap(e => e[1])
         this.entries.Push(['', '', '[双击打开路径]'])
     }
 
     getIndex(node, &index) {
-        return node and mGet(this.nodeIndexMap, node, &index)
+        return node and this.nodeIndexMap.getVal(node, &index)
     }
 
     askRename(saveName, entry) {
@@ -107,13 +107,13 @@ class NonlinearBackup {
     }
 
     doSave(saveName, auto, &msg) {
-        srcFiles := scanFiles(this.src, this.pattern).cache()
+        srcFiles := scanFiles(this.src, this.pattern).toArr()
         if not srcFiles.map(fileModifiedTime).max(&latestTime) {
             msg := '无可备份文件'
             return false
         }
         timestamp := timeEncode(latestTime)
-        if first(this.entries, &fst) and timestamp == fst[1] {
+        if this.entries.first(&fst) and timestamp == fst[1] {
             if not auto {
                 this.askRename(saveName, fst)
             }
@@ -127,7 +127,7 @@ class NonlinearBackup {
             return false
         }
         if not auto {
-            if anyMatch(this.entries, e => e[3] == saveName) {
+            if this.entries.any(e => e[3] == saveName) {
                 msg := '存档已存在'
                 return false
             }
@@ -142,7 +142,7 @@ class NonlinearBackup {
         this.setHead(timestamp)
         if IsSet(treeListView) {
             if gcGetWinId(treeListView, &lvId) and WinExist(lvId) {
-                selections := lvGetAllSelected(treeListView).map(i => i + 1).toArray()
+                selections := lvGetAllSelected(treeListView).mapOut(i => i + 1)
                 this.showSaves(true, selections*)
             } else {
                 global treeListView
@@ -153,54 +153,54 @@ class NonlinearBackup {
     }
 
     checkAuto(saveName, &msg) {
-        if startsWith(saveName, '=') {
-            sub := SubStr(saveName, 2)
-            if isFullMatch(sub, '[+-]?[0-9]+[hHmMsS]') {
-                config := procMap[this.proc]
-                len := StrLen(sub)
-                num := Integer(SubStr(sub, 1, len - 1))
-                if num == 0 {
-                    if mGet(config, NonlinearBackup.autoFunc, &timer) {
-                        SetTimer(timer, 0)
-                        NonlinearBackup.clearAuto(config)
-                        exitGuiWith('关闭自动备份', 3)
-                        return true
-                    } else {
-                        msg := '自动备份未开启'
-                        return true
-                    }
-                }
-                unit := SubStr(sub, len)
-                millis := num * 1000
-                if unit = 'm' {
-                    millis *= 60
-                } else if unit = 'h' {
-                    millis *= 3600
-                }
-                config := procMap[this.proc]
-                if mGet(config, NonlinearBackup.autoFunc, &old) {
-                    SetTimer(old, 0)
-                }
-                f() {
-                    if this.doSave(String(A_Now), true, &_) {
-                        display(this.proc ' - 已自动备份')
-                    }
-                    this.load()
-                    if num < 0 {
-                        NonlinearBackup.clearAuto(config)
-                    }
-                }
-                config[NonlinearBackup.autoFunc] := f
-                config[NonlinearBackup.autoText] := sub
-                SetTimer(f, millis)
-                exitGuiWith((num > 0 ? '开启自动备份：' : '预约备份：') sub, 3)
-                return true
-            } else {
-                msg := '自动备份语法错误'
-                return true
-            }
+        if not saveName.startsWith('=') {
+            return false
         }
-        return false
+        sub := SubStr(saveName, 2)
+        if sub.isFullMatch('[+-]?[0-9]+[hHmMsS]') {
+            config := procMap[this.proc]
+            len := StrLen(sub)
+            num := Integer(SubStr(sub, 1, len - 1))
+            if num == 0 {
+                if config.getVal(NonlinearBackup.autoFunc, &timer) {
+                    SetTimer(timer, 0)
+                    NonlinearBackup.clearAuto(config)
+                    exitGuiWith('关闭自动备份', 3)
+                    return true
+                } else {
+                    msg := '自动备份未开启'
+                    return true
+                }
+            }
+            unit := SubStr(sub, len)
+            millis := num * 1000
+            if unit = 'm' {
+                millis *= 60
+            } else if unit = 'h' {
+                millis *= 3600
+            }
+            config := procMap[this.proc]
+            if config.getVal(NonlinearBackup.autoFunc, &old) {
+                SetTimer(old, 0)
+            }
+            f() {
+                if this.doSave(String(A_Now), true, &_) {
+                    display(this.proc ' - 已自动备份')
+                }
+                this.load()
+                if num < 0 {
+                    NonlinearBackup.clearAuto(config)
+                }
+            }
+            config[NonlinearBackup.autoFunc] := f
+            config[NonlinearBackup.autoText] := sub
+            SetTimer(f, millis)
+            exitGuiWith((num > 0 ? '开启自动备份：' : '预约备份：') sub, 3)
+            return true
+        } else {
+            msg := '自动备份语法错误'
+            return true
+        }
     }
 
     saveFiles() {
@@ -213,10 +213,10 @@ class NonlinearBackup {
             if this.checkAuto(saveName, &autoMsg) {
                 return IsSet(autoMsg) ? autoMsg : ''
             }
-            if isFullMatch(saveName, '\s*') {
+            if saveName.isFullMatch('\s*') {
                 return '不允许空文件夹'
             }
-            if hasMatch(saveName, '[\\/:*?"<>|]') {
+            if saveName.hasMatch('[\\/:*?"<>|]') {
                 return '不能包含非法字符`n\/:*?"<>|'
             }
             if not this.doSave(saveName, false, &saveMsg) {
@@ -239,14 +239,14 @@ class NonlinearBackup {
             display('暂无备份')
             return
         }
-        bad := seqOf(this.entries).filter(e => e.Length < 3).map(e => e[1]).toArray()
+        bad := this.entries.filter(e => e.Length < 3).mapOut(e => e[1])
         if bad.Length > 0 {
             if popupYesNo('归档确认', '发现以下未归档备份：`n`n'
-                join(bad, '`n', f => '- ' f) '`n`n'
+                bad.join('`n', f => '- ' f) '`n`n'
                 '是否统一归档(Y)或删除(N)`n'
                 '归档后将按时间顺序视为连续继承')
             {
-                seqReverse(bad).fold('', (parent, folder) => (
+                bad.reverse().fold('', (parent, folder) => (
                     id := timeEncode(FileGetTime(this.target '\' folder)),
                     this.renameSave(folder, id, parent, folder),
                     id
@@ -263,14 +263,14 @@ class NonlinearBackup {
             return
         }
         rg := range(1, size - 1)
-        parentArray := rg.map(i => this.nodeIndexMap.Get(this.entries[i][2], size)).toArray()
-        childrenMap := rg.groupBy(itemGet(parentArray))
-        tree := repeatBy(size, () => repeat(size, ' '))
+        parentArr := rg.mapOut(i => this.nodeIndexMap.Get(this.entries[i][2], size))
+        childrenMap := rg.groupBy(itemGet(parentArr))
+        tree := arrRepeatBy(size, () => arrRepeat(size, ' '))
 
         headIndex := this.nodeIndexMap.Get(this.loadHead(), 0)
         fillNode(i, j) {
             tree[i][j] := headIndex == i ? '╪' : '┼'
-            if not mGet(childrenMap, i, &children) {
+            if not childrenMap.getVal(i, &children) {
                 return j
             }
             first := children[1]
@@ -296,7 +296,7 @@ class NonlinearBackup {
         end := fillNode(size, 1)
 
         beautifyRow(row) {
-            a := repeat((end << 1) - 1, ' ')
+            a := arrRepeat((end << 1) - 1, ' ')
             for i in range(1, end) {
                 s := row[i]
                 a[(i << 1) - 1] := s
@@ -304,9 +304,9 @@ class NonlinearBackup {
                     a[(i << 1) - 2] := '─'
                 }
             }
-            return seqReverse(a).join()
+            return a.reverse().join()
         }
-        rows := aMapIndexed(this.entries, (i, e) => [beautifyRow(tree[i]) ' ' e[3], readableTime(timeDecode(e[1]))])
+        rows := this.entries.mapIndexedOut((i, e) => [beautifyRow(tree[i]) ' ' e[3], readableTime(timeDecode(e[1]))])
 
         global treeListView
         treeListView := lv := listViewAll(['存档树', '时间'], rows, makeGlobalGui.Bind(this.getAppTitle()))
@@ -316,7 +316,7 @@ class NonlinearBackup {
         }
 
         onEnter(lv) {
-            selected := lvGetAllSelected(lv).toArray()
+            selected := lvGetAllSelected(lv).toArr()
             if selected.Length == 1 {
                 index := selected[1]
                 if index < size {
@@ -331,11 +331,11 @@ class NonlinearBackup {
         cmdMap['Enter'] := wrapCmd(lv, onEnter)
 
         onRButton(lv) {
-            selected := lvGetAllSelected(lv).toArray()
+            selected := lvGetAllSelected(lv).toArr()
             if selected.Length == 2 {
                 i := selected[1]
                 j := selected[2]
-                p := parentArray[i]
+                p := parentArr[i]
                 if p == j and p == size {
                     return
                 }
@@ -347,7 +347,7 @@ class NonlinearBackup {
 
         onCtrlUp(lv) {
             index := lv.GetNext()
-            if mGet(childrenMap, index, &cr) {
+            if childrenMap.getVal(index, &cr) {
                 SendInput('{Up ' index - cr[1] '}')
             }
         }
@@ -356,7 +356,7 @@ class NonlinearBackup {
         onCtrlDown(lv) {
             index := lv.GetNext()
             if index < size {
-                SendInput('{Down ' parentArray[index] - index '}')
+                SendInput('{Down ' parentArr[index] - index '}')
             }
         }
         cmdMap['CtrlDown'] := wrapCmd(lv, onCtrlDown)
@@ -368,24 +368,24 @@ class NonlinearBackup {
             }
             newParentMap := Map()
             for index in selectionSet {
-                if mGet(childrenMap, index, &children) {
-                    restChildren := filter(children, notIn(selectionSet))
+                if childrenMap.getVal(index, &children) {
+                    restChildren := children.filterOut(notIn(selectionSet))
                     if restChildren.Length == 0 {
                         continue
                     }
                     if restChildren.Length > 1 {
-                        forEach(selectionSet, i => lvSelect(lv, i))
+                        selectionSet.consume(i => lvSelect(lv, i))
                         return this.entries[index][3] ' 存在多个子节点 无法删除'
                     }
                     rest := restChildren[1]
-                    newParentMap[rest] := moveUntil(rest, itemGet(parentArray), notIn(selectionSet))
+                    newParentMap[rest] := moveUntil(rest, itemGet(parentArr), notIn(selectionSet))
                 }
             }
-            if not popupYesNo('删除存档', '是否删除存档：`n' join(selectionSet, '`n', i => '- ' this.entries[i][3])) {
+            if not popupYesNo('删除存档', '是否删除存档：`n' selectionSet.join('`n', i => '- ' this.entries[i][3])) {
                 return
             }
             if this.getIndex(this.loadHead(), &headIndex) {
-                headIndex := moveWhile(headIndex, itemGet(parentArray), isIn(selectionSet))
+                headIndex := moveWhile(headIndex, itemGet(parentArr), isIn(selectionSet))
             }
             for index in selectionSet {
                 DirDelete(this.target '\' this.saves[index], true)
@@ -433,7 +433,7 @@ class NonlinearBackup {
         this.renameSave(this.saves[index], src[1], des[1], src[3])
         if inplace {
             src[2] := des[1]
-            this.saves[index] := join(src, '#')
+            this.saves[index] := src.join('#')
         }
     }
 }
@@ -479,8 +479,8 @@ F1:: {
 
 runBackupHelper(action) {
     proc := procName()
-    if mGet(procMap, proc, &config) {
-        if mGet(config, 'title', &title) {
+    if procMap.getVal(proc, &config) {
+        if config.getVal('title', &title) {
             if not title or isWinTitleMatch(title) {
                 action(NonlinearBackup(proc, config))
             }

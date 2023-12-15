@@ -1,54 +1,86 @@
 #Include seq.ahk
 
-
-fold(a, acc, accumulator) {
-    forEach(a, t => acc := accumulator(acc, t))
-    return acc
-}
-
-forEach(a, consumer) {
-    for t in a {
-        consumer(t)
+Array.Prototype.Base := NewArray
+class NewArray extends Iterable {
+    static mapOut(mapper) {
+        b := []
+        b.Capacity := this.Capacity
+        for t in this {
+            b.Push(mapper(t))
+        }
+        return b
     }
-}
 
-forEachIndexed(a, indexedConsumer) {
-    for i, t in a {
-        indexedConsumer(i, t)
+    static mapIndexedOut(indexedMapper) {
+        b := []
+        b.Capacity := this.Capacity
+        for i, t in this {
+            b.Push(indexedMapper(i, t))
+        }
+        return b
     }
-}
 
-first(a, &res) {
-    for t in a {
-        res := t
-        return true
-    }
-    return false
-}
-
-find(a, &res, test) {
-    for t in a {
-        if test(t) {
-            res := t
+    static first(&res) {
+        if this.Length > 1 {
+            res := this[1]
             return true
         }
+        return false
     }
-    return false
+
+    static toArr() {
+        return this.Clone()
+    }
+
+    static reverse() {
+        return range(this.Length, 1, -1).map(i => this[i])
+    }
+
+    static reverseOut() {
+        return range(this.Length, 1, -1).mapOut(i => this[i])
+    }
+
+    static get(index, default) {
+        return index <= this.Length ? this[index] : default
+    }
+
+    static slice(start, end) {
+        return this.sub(start, end).toArr()
+    }
+
+    static sub(start, end) {
+        b := start >= 0 ? start : this.Length + start + 1
+        e := end >= 0 ? end : this.Length + end + 1
+        return range(b, e, b <= e ? 1 : -1).map(i => this[i])
+    }
 }
 
-anyMatch(a, test) {
-    return find(a, &_, test)
+Map.Prototype.Base := NewMap
+class NewMap extends Iterable {
+    static getVal(key, &value) {
+        if this.Has(key) {
+            value := this[key]
+            return true
+        }
+        return false
+    }
+
+    static getNum(key, &num) {
+        if this.getVal(key, &value) {
+            try {
+                num := Number(value)
+            } catch TypeError {
+            }
+        }
+        return IsSet(num)
+    }
+
+    static seq(kvMapper) {
+        return seqPairs(this, kvMapper)
+    }
 }
 
-allMatch(a, test) {
-    return not find(a, &_, negate(test))
-}
-
-noneMatch(a, test) {
-    return not find(a, &_, test)
-}
-
-repeat(n, t) {
+arrRepeat(n, t) {
     a := []
     loop n {
         a.Push(t)
@@ -56,168 +88,12 @@ repeat(n, t) {
     return a
 }
 
-repeatBy(n, supplier) {
+arrRepeatBy(n, supplier) {
     a := []
     loop n {
         a.Push(supplier())
     }
     return a
-}
-
-reverse(a) {
-    return aMapIndexed(a, (i, t) => a[-i])
-}
-
-getOr(a, index, default) {
-    return index <= a.Length ? a[index] : default
-}
-
-aMap(a, mapper) {
-    b := []
-    if a is Array {
-        b.Capacity := a.Capacity
-    }
-    for t in a {
-        b.Push(mapper(t))
-    }
-    return b
-}
-
-aMapIndexed(a, indexedMapper) {
-    b := []
-    if a is Array {
-        b.Capacity := a.Capacity
-    }
-    for i, t in a {
-        b.Push(indexedMapper(i, t))
-    }
-    return b
-}
-
-filter(a, test) {
-    b := []
-    for t in a {
-        if test(t) {
-            b.Push(t)
-        }
-    }
-    return b
-}
-
-join(a, sep?, mapper?) {
-    sq := seqOf(a)
-    if IsSet(mapper) {
-        sq := sq.map(mapper)
-    }
-    return sq.join(sep?)
-}
-
-aSort(a, opt := '') {
-    sep := '`n'
-    s := Sort(join(a, sep), opt)
-    return StrSplit(s, sep)
-}
-
-aSortBy(a, mapper, opt := '', interSep := '``') {
-    sep := '`n'
-    s := Sort(seqOf(a).mapIndexed((i, t) => mapper(t) interSep i).join(sep), opt)
-    return seqSplit(s, sep).map(t => a[Integer(StrSplit(t, interSep)[2])]).toArray()
-}
-
-toIndexMap(a, keyMapper?) {
-    m := Map()
-    IsSet(keyMapper)
-    ? forEachIndexed(a, (i, t) => m[keyMapper(t)] := i)
-    : forEachIndexed(a, (i, t) => m[t] := i)
-    return m
-}
-
-count(a, test) {
-    c := 0
-    for t in a {
-        if test(t) {
-            c++
-        }
-    }
-    return c
-}
-
-sum(a, mapper?) {
-    sum := 0
-    if IsSet(mapper) {
-        for t in a {
-            sum += mapper(t)
-        }
-    } else {
-        for t in a {
-            sum += t
-        }
-    }
-    return sum
-}
-
-maxOf(a, &res, comparator?) {
-    if IsSet(comparator) {
-        for t in a {
-            if not IsSet(res) or comparator(res, t) < 0 {
-                res := t
-            }
-        }
-    } else {
-        for t in a {
-            if not IsSet(res) or res < t {
-                res := t
-            }
-        }
-    }
-    return IsSet(res)
-}
-
-maxBy(a, &res, valMapper, &val?) {
-    for t in a {
-        v := valMapper(t)
-        if not IsSet(res) or val < v {
-            res := t
-            val := v
-        }
-    }
-    return IsSet(res)
-}
-
-minOf(a, &res, comparator?) {
-    if IsSet(comparator) {
-        for t in a {
-            if not IsSet(res) or comparator(res, t) > 0 {
-                res := t
-            }
-        }
-    } else {
-        for t in a {
-            if not IsSet(res) or res > t {
-                res := t
-            }
-        }
-    }
-    return IsSet(res)
-}
-
-minBy(a, &res, valMapper, &val?) {
-    for t in a {
-        v := valMapper(t)
-        if not IsSet(res) or val > v {
-            res := t
-            val := v
-        }
-    }
-    return IsSet(res)
-}
-
-mGet(m, key, &value) {
-    if m.Has(key) {
-        value := m[key]
-        return true
-    }
-    return false
 }
 
 itemGet(x) {
@@ -231,8 +107,8 @@ isIn(x) {
     if x is Map or x is Array {
         return t => x.Has(t)
     }
-    if x is Enumerator {
-        return t => anyMatch(x, e => e == t)
+    if x is CallbackSeq or x is EnumSeq {
+        return t => x.any(e => e == t)
     }
     if x is String {
         return InStr.Bind(x)
@@ -244,8 +120,8 @@ notIn(x) {
     if x is Map or x is Array {
         return t => not x.Has(t)
     }
-    if x is Array or x is Enumerator {
-        return t => noneMatch(x, e => e == t)
+    if x is CallbackSeq or x is EnumSeq {
+        return t => x.none(e => e == t)
     }
     if x is String {
         return t => not InStr(x, t)

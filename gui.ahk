@@ -6,7 +6,6 @@ ListLines false
 KeyHistory 0
 
 globalGui := unset
-globalDisplaySeconds := 0
 
 nothing(*) {
 }
@@ -19,9 +18,6 @@ display(x, sec := 3, followGui := false) {
         ToolTip(displaying, 0, -14)
     } else {
         ToolTip(displaying)
-    }
-    if globalDisplaySeconds > 0 {
-        sec := globalDisplaySeconds
     }
     SetTimer(() => (displaying := '', ToolTip()), -1000 * sec)
     return msg
@@ -85,7 +81,7 @@ popupYesNo(title, text) {
 }
 
 estimateLen(str) {
-    static edgeMap := seqAll('│', '└', '┴', '─', '╪', '┼').toMapWith(Ord)
+    static edgeMap := (['│', '└', '┴', '─', '╪', '┼']).toMapWith(Ord)
     return seqSplit(str, '').sum(c => Ord(c) < 128 or edgeMap.Has(c) ? 7.5 : 15)
 }
 
@@ -100,7 +96,7 @@ listViewAll(titles, rows, guiMaker := makeGlobalGui, maxHeight := 30) {
     g := guiMaker()
 
     estColWidth(i) {
-        maxBy(rows, &_, r => estimateLen(r[i]), &maxLen)
+        rows.maxBy(&_, r => estimateLen(r[i]), &maxLen)
         return Max(maxLen, estimateLen(titles[i]))
     }
     width := 11 * colNum + range(1, colNum).sum(estColWidth)
@@ -109,7 +105,7 @@ listViewAll(titles, rows, guiMaker := makeGlobalGui, maxHeight := 30) {
         width += 11
     }
     lv := g.AddListView('NoSortHdr w' width ' r' height, titles)
-    forEach(rows, row => lv.Add(, row*))
+    rows.consume(row => lv.Add(, row*))
 
     lv.ModifyCol()
     lv.ModifyCol(colNum, 'AutoHdr')
@@ -130,7 +126,7 @@ lvGetAllSelected(lv) {
 }
 
 formatError(e) {
-    return Type(e) ': ' e.Message (e.Extra ? ' (' e.Extra ')' : '')
+    return Type(e) ': ' e.Message (e.Extra != '' ? ' (' e.Extra ')' : '')
 }
 
 execSelection() {
@@ -149,7 +145,7 @@ execSelection() {
                 break
             }
         }
-        content := join(lines, '`n')
+        content := lines.join('`n')
     } else {
         content := toStdOut(expression)
     }
@@ -187,7 +183,7 @@ gcGetWinId(gc, &id) {
 }
 
 isWinTitleMatch(pattern) {
-    return isWildcardMatch(WinGetTitle('A'), pattern)
+    return WinGetTitle('A').isWildcardMatch(pattern)
 }
 
 isWinActive(procName, titlePattern?) {
