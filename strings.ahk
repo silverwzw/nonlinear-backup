@@ -170,6 +170,9 @@ dumps(x) {
     if x is CallbackSeq2 or x is EnumSeq2 {
         return dumps(x.map(pair).toArr())
     }
+    if x is Object {
+        return _reprEnum2(x.OwnProps(), dumps)
+    }
     return String(x)
 }
 
