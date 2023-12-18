@@ -345,6 +345,22 @@ class Seq {
         return CallbackSeq(f)
     }
 
+    static mapPair(overlapping := false) {
+        fun(c) {
+            last := unset
+            g(t) {
+                if IsSet(last) {
+                    c(last, t)
+                    last := overlapping ? t : unset
+                } else {
+                    last := t
+                }
+            }
+            this.consume(g)
+        }
+        return CallbackSeq2(fun)
+    }
+
     static toMap(keyMapper, valueMapper) {
         return this.reduce(Map(), (m, x) => m[keyMapper(x)] := valueMapper(x))
     }
@@ -581,6 +597,27 @@ class Iterable extends Seq {
         return EnumSeq(fun)
     }
 
+    static mapPair(overlapping := false) {
+        fun() {
+            last := unset
+            e := this.__Enum(1)
+            g(&k, &v) {
+                while e.Call(&t) {
+                    if IsSet(last) {
+                        k := last
+                        last := overlapping ? t : unset
+                        v := t
+                        return true
+                    }
+                    last := t
+                }
+                return false
+            }
+            return g
+        }
+        return EnumSeq2(fun)
+    }
+
     static runningFold(init, accumulator) {
         fun() {
             acc := init
@@ -615,6 +652,152 @@ class EnumSeq {
         } else {
             throw ValueError(NumberOfVars)
         }
+    }
+}
+
+class Seq2 {
+    static map(biMapper) {
+        return CallbackSeq(c => this.consume((k, v) => c(biMapper(k, v))))
+    }
+
+    static mapKey1(mapper) {
+        return CallbackSeq2(c => this.consume((k, v) => c(mapper(k), v)))
+    }
+
+    static mapKey2(biMapper) {
+        return CallbackSeq2(c => this.consume((k, v) => c(biMapper(k, v), v)))
+    }
+
+    static mapValue1(mapper) {
+        return CallbackSeq2(c => this.consume((k, v) => c(k, mapper(v))))
+    }
+
+    static mapValue2(biMapper) {
+        return CallbackSeq2(c => this.consume((k, v) => c(k, biMapper(k, v))))
+    }
+
+    static toMap() {
+        m := Map()
+        this.consume((k, v) => m[k] := v)
+        return m
+    }
+}
+
+class CallbackSeq2 {
+    static Prototype.Base := Seq2
+
+    __New(consumerConsumer) {
+        this.consumerConsumer := consumerConsumer
+    }
+
+    consume(biConsumer) {
+        try {
+            this.consumerConsumer.Call(biConsumer)
+        } catch StopError {
+        }
+    }
+}
+
+class EnumSeq2 {
+    static Prototype.Base := Seq2
+
+    __New(enumFunc) {
+        this.enumFunc := enumFunc
+    }
+
+    __Enum(NumberOfVars) {
+        fun := this.enumFunc.Call()
+        if NumberOfVars == 2 {
+            return fun
+        } else if NumberOfVars == 1 {
+            return (&k) => fun(&k, &_)
+        } else {
+            throw ValueError(NumberOfVars)
+        }
+    }
+
+    consume(consumer) {
+        try {
+            for k, v in this {
+                consumer(k, v)
+            }
+        } catch StopError {
+        }
+    }
+
+    map(biMapper) {
+        fun() {
+            e := this.enumFunc.Call()
+            g(&x) {
+                if e.Call(&k, &v) {
+                    x := biMapper(k, v)
+                    return true
+                }
+                return false
+            }
+            return g
+        }
+        return EnumSeq(fun)
+    }
+
+    mapKey1(mapper) {
+        fun() {
+            e := this.enumFunc.Call()
+            g(&x, &v) {
+                if e.Call(&k, &v) {
+                    x := mapper(k)
+                    return true
+                }
+                return false
+            }
+            return g
+        }
+        return EnumSeq2(fun)
+    }
+
+    mapKey2(biMapper) {
+        fun() {
+            e := this.enumFunc.Call()
+            g(&x, &v) {
+                if e.Call(&k, &v) {
+                    x := biMapper(k, v)
+                    return true
+                }
+                return false
+            }
+            return g
+        }
+        return EnumSeq2(fun)
+    }
+
+    mapValue1(mapper) {
+        fun() {
+            e := this.enumFunc.Call()
+            g(&k, &x) {
+                if e.Call(&k, &v) {
+                    x := mapper(v)
+                    return true
+                }
+                return false
+            }
+            return g
+        }
+        return EnumSeq2(fun)
+    }
+
+    mapValue2(biMapper) {
+        fun() {
+            e := this.enumFunc.Call()
+            g(&k, &x) {
+                if e.Call(&k, &v) {
+                    x := biMapper(k, v)
+                    return true
+                }
+                return false
+            }
+            return g
+        }
+        return EnumSeq2(fun)
     }
 }
 

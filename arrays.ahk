@@ -78,6 +78,10 @@ class NewMap extends Iterable {
     static seq(kvMapper) {
         return seqPairs(this, kvMapper)
     }
+
+    static seq2() {
+        return EnumSeq2(() => this.__Enum(2))
+    }
 }
 
 arrRepeat(n, t) {

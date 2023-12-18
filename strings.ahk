@@ -144,6 +144,9 @@ repr(x) {
     if x is CallbackSeq or x is EnumSeq {
         return '(' x.join(', ', repr) ')'
     }
+    if x is CallbackSeq2 or x is EnumSeq2 {
+        return '(' x.map((k, v) => repr(k) '=' repr(v)).join(', ') ')'
+    }
     if x is Object {
         return _reprEnum2(x.OwnProps(), repr)
     }
@@ -162,10 +165,10 @@ dumps(x) {
         return _reprEnum2(x, dumps)
     }
     if x is CallbackSeq or x is EnumSeq {
-        return '(' x.join(', ', dumps) ')'
+        return dumps(x.toArr())
     }
-    if x is Object {
-        return _reprEnum2(x.OwnProps(), dumps)
+    if x is CallbackSeq2 or x is EnumSeq2 {
+        return dumps(x.map(pair).toArr())
     }
     return String(x)
 }
