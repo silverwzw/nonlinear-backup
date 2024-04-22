@@ -311,8 +311,12 @@ class NonlinearBackup {
         global treeListView
         treeListView := lv := listViewAll(['存档树', '时间'], rows, makeGlobalGui.Bind(this.getAppTitle()))
         lv.OnEvent('DoubleClick', (gc, index) => index == size ? Run(this.target) : 0)
-        for i in selections {
-            lvSelect(lv, i)
+        if selections.Length > 0 {
+            for i in selections {
+                lvSelect(lv, i)
+            }
+        } else {
+            lvSelect(lv, headIndex or 1)
         }
 
         onEnter(lv) {
@@ -487,4 +491,4 @@ runBackupHelper(action) {
 }
 
 #F6:: runBackupHelper(bh => bh.saveFiles())
-#F7:: runBackupHelper(bh => bh.showSaves(false, 1))
+#F7:: runBackupHelper(bh => bh.showSaves(false))
