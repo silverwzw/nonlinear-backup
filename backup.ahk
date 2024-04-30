@@ -29,10 +29,13 @@ parseConfig(head, rest) {
     if not configMap.getVal('dir', &dir) {
         quit('缺失存档路径 dir: ' proc)
         stop()
-    } else if not FileExist(dir) {
+    }
+    dir := StrReplace(dir, '{user}', A_UserName)
+    if not FileExist(dir) {
         quit('存档路径不存在：' dir)
         stop()
     }
+    configMap['dir'] := dir
     return [proc, configMap]
 }
 
@@ -57,11 +60,10 @@ class NonlinearBackup {
     static appName := '非线性备份'
     static autoFunc := 'autoFunc'
     static autoText := 'autoText'
-    static backupDir := A_WorkingDir
 
     __New(proc, config) {
         this.proc := proc
-        this.target := NonlinearBackup.backupDir '\' proc
+        this.target := A_WorkingDir '\' proc
         this.src := config['dir']
         this.title := config.Get('title', '')
         this.pattern := config.Get('pattern', '*')
