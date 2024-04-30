@@ -119,36 +119,42 @@
 
 在已创建好的备份专用文件夹中，右键新建一个名为 `backup.txt` 的文本文件，并将其后缀名改为 `ini`。程序将识别文件内的配置信息，关联你所关心的游戏和存档路径。
 
-配置文件的格式示例如下
+以游戏[恶意不息]为例，配置文件的格式示例如下
 
-```txt
-; 本软件的源代码开发存档
-Code, *nonlinear-backup* = D:\gitee\nonlinear-backup
-; 游戏《匹诺曹的谎言》存档
-LOP-Win64-Shipping = D:\SteamLibrary\steamapps\common\Lies of P\LiesofP\Saved\SaveGames\855023306
-; 游戏《戴森球计划》存档
-DSPGAME = C:\Users\ray\Documents\Dyson Sphere Program\Save, _lastexit_.dsv
+```ini
+; 游戏《恶意不息》，只保存国度
+[NoRestForTheWicked]
+dir=C:\Users\{你的用户名}\AppData\LocalLow\Moon Studios\NoRestForTheWicked\DataStore
+pattern=Realm_*.dat
+
+; 游戏《匹诺曹的谎言》
+[LOP-Win64-Shipping]
+dir=D:\SteamLibrary\steamapps\common\Lies of P\LiesofP\Saved\SaveGames\855023306
+
+; VS Code本工程项目
+[Code]
+title=*nonline-backup*
 ```
 
 #### 格式说明
 
-每一行是一个配置（`;`代表行注释）每个配置按照如下形式填写
+每一块是一个配置（`;`代表行注释）每个配置按照如下形式填写
 
+```ini
+[程序名]
+title=窗口标题
+dir=备份路径
+pattern=待备份文件格式
 ```
-程序名[, 窗口标题] = 备份路径[, 文件格式]
-```
+中括号中的[游戏程序名]是程序在Windows系统下的唯一名称，按快捷键 `Win+F8` 获取，页面会显示3秒并自动复制到剪贴板。
 
-在等号左侧，首先要填的程序名可在进入程序后，按快捷键 `Win+F8` 获取，页面会显示3秒并自动复制到剪贴板。对于游戏，窗口标题可以直接忽略不填，因为不同游戏程序名必然不同。但是对于一些写作之类的工作，如果你使用的是VS Code这样的通用编辑器，那有必要增加一个窗口标题限制，以便有针对性的备份。例如上面例子中的 `*nonlinear-backup*`，其中的 `*`号就是作为通配符，含义为标题中只要存在 `nonlinear-backup`，就视为该指定项目。窗口标题可通过快捷键 `Win+F9` 获取。
+`title`代表窗口标题。一般对于游戏，可以直接忽略不填，因为不同游戏程序名必然不同。但是对于一些写作之类的工作，如果你使用的是VS Code这样的通用编辑器，那有必要增加一个窗口标题限制，以便有针对性的备份。例如上面例子中的 `*nonlinear-backup*`，其中的 `*`号就是作为通配符，含义为标题中只要存在 `nonlinear-backup`，就视为该指定项目。窗口标题可通过快捷键 `Win+F9` 获取。
 
-而在等号右侧，备份路径需要用户自行确定，游戏的备份路径百度一下即可。例如Steam游戏通常的路径为
+`dir`代表备份路径，每个游戏都不一样，需要用户自行确定，一般百度下即可。
 
-```
-D:\SteamLibrary\steamapps\common\游戏名\...
-```
+`pattern`代表希望备份的文件格式，可选择性填写。例如`*.txt` 代表仅限 `txt` 后缀的文件，`abc*.txt` 则代表以 `abc` 开头且后缀为 `txt` 的文件。例如游戏《戴森球计划》自带存档管理，它在存档目录下的所有文件都是不同的存档，你只需要备份其中默认的存档 `_lastexit_.dsv` 即可。又例如《恶意不息》你需要反复进入国度复制装备武器，则只需要备份国度的配置文件也即`Realm_*.dat`即可。
 
-在填写好备份路径之后，用户可以选择性的填写文件格式。`*.txt` 代表仅限 `txt` 后缀的文件，`abc*.txt` 则代表以 `abc` 开头且后缀为 `txt` 的文件。例如游戏《戴森球计划》自带存档管理，它在存档目录下的所有文件都是不同的存档，你只需要备份其中默认的存档 `_lastexit_.dsv` 即可。
-
-在填写配置时，所涉及到的两个关键符号 `=`, `,` 左右的空格留不留都可以。程序名和路径名请务必确保准确。
+在填写配置时，所涉及到的关键符号 `=`, 左右的空格留不留都可以。程序名和路径名请务必确保准确。
 
 #### 启动程序
 
